@@ -14,6 +14,8 @@
 package com.facebook.presto.resourceGroups.db;
 
 import com.facebook.presto.execution.resourceGroups.InternalResourceGroup;
+import com.facebook.presto.resourceGroups.systemtables.QueryQueueCache;
+import com.facebook.presto.resourceGroups.systemtables.ResourceGroupInfoHolder;
 import com.facebook.presto.spi.resourceGroups.SchedulingPolicy;
 import com.facebook.presto.spi.resourceGroups.SelectionContext;
 import io.airlift.units.DataSize;
@@ -25,6 +27,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.facebook.presto.execution.resourceGroups.InternalResourceGroup.DEFAULT_WEIGHT;
+import static com.facebook.presto.resourceGroups.db.ResourceGroupGlobalProperties.CPU_QUOTA_PERIOD;
 import static com.facebook.presto.spi.resourceGroups.SchedulingPolicy.FAIR;
 import static com.facebook.presto.spi.resourceGroups.SchedulingPolicy.WEIGHTED;
 import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
@@ -46,25 +49,28 @@ public class TestDbResourceGroupConfigurationManager
     @Test
     public void testConfiguration()
     {
+        QueryQueueCache queryQueueCache = new QueryQueueCache();
+        ResourceGroupInfoHolder resourceGroupInfoHolder = new ResourceGroupInfoHolder();
+        ConfigurationNotifier configurationNotifier = new ConfigurationNotifier();
         H2DaoProvider daoProvider = setup("test_configuration");
         H2ResourceGroupsDao dao = daoProvider.get();
         dao.createResourceGroupsGlobalPropertiesTable();
         dao.createResourceGroupsTable();
         dao.createSelectorsTable();
-        dao.insertResourceGroupsGlobalProperties("cpu_quota_period", "1h");
-        dao.insertResourceGroup(1, "global", "1MB", 1000, 100, "weighted", null, true, "1h", "1d", null);
-        dao.insertResourceGroup(2, "sub", "2MB", 4, 3, null, 5, null, null, null, 1L);
+        dao.upsertResourceGroupsGlobalProperties(CPU_QUOTA_PERIOD, "1h");
+        dao.insertResourceGroup(1, "global", "1MB", "1GB", "20GB", 1000, 100, "weighted", null, true, "1h", "1d", "1h", "1h", null);
+        dao.insertResourceGroup(2, "sub", "2MB", "1GB", "20GB", 4, 3, null, 5, null, null, null, "1h", "1h", 1L);
         dao.insertSelector(2, null, null);
         DbResourceGroupConfigurationManager manager = new DbResourceGroupConfigurationManager((poolId, listener) -> { },
-                daoProvider.get());
+                daoProvider.get(), queryQueueCache, resourceGroupInfoHolder, configurationNotifier);
         AtomicBoolean exported = new AtomicBoolean();
         InternalResourceGroup global = new InternalResourceGroup.RootInternalResourceGroup("global", (group, export) -> exported.set(export), directExecutor());
         manager.configure(global, new SelectionContext(true, "user", Optional.empty(), 1));
-        assertEqualsResourceGroup(global, "1MB", 1000, 100, WEIGHTED, DEFAULT_WEIGHT, true,  new Duration(1, HOURS), new Duration(1, DAYS));
+        assertEqualsResourceGroup(global, "1MB", "1GB", "20GB", 1000, 100, WEIGHTED, DEFAULT_WEIGHT, true,  new Duration(1, HOURS), new Duration(1, DAYS), new Duration(1, HOURS), new Duration(1, HOURS));
         exported.set(false);
         InternalResourceGroup sub = global.getOrCreateSubGroup("sub");
         manager.configure(sub, new SelectionContext(true, "user", Optional.empty(), 1));
-        assertEqualsResourceGroup(sub, "2MB", 4, 3, FAIR, 5, false, new Duration(Long.MAX_VALUE, MILLISECONDS), new Duration(Long.MAX_VALUE, MILLISECONDS));
+        assertEqualsResourceGroup(sub, "2MB", "1GB", "20GB", 4, 3, FAIR, 5, false, new Duration(Long.MAX_VALUE, MILLISECONDS), new Duration(Long.MAX_VALUE, MILLISECONDS), new Duration(1, HOURS), new Duration(1, HOURS));
     }
 
     @Test
@@ -75,9 +81,9 @@ public class TestDbResourceGroupConfigurationManager
         dao.createResourceGroupsGlobalPropertiesTable();
         dao.createResourceGroupsTable();
         dao.createSelectorsTable();
-        dao.insertResourceGroup(1, "global", "1MB", 1000, 100, null, null, null, null, null, null);
+        dao.insertResourceGroup(1, "global", "1MB", "1GB", "20GB", 1000, 100, null, null, null, null, null, null, null, null);
         try {
-            dao.insertResourceGroup(1, "global", "1MB", 1000, 100, null, null, null, null, null, null);
+            dao.insertResourceGroup(1, "global", "1MB", "1GB", "20GB", 1000, 100, null, null, null, null, null, null, null, null);
             fail("Expected to fail");
         }
         catch (RuntimeException ex) {
@@ -91,10 +97,10 @@ public class TestDbResourceGroupConfigurationManager
         dao.createResourceGroupsGlobalPropertiesTable();
         dao.createResourceGroupsTable();
         dao.createSelectorsTable();
-        dao.insertResourceGroup(1, "global", "1MB", 1000, 100, null, null, null, null, null, null);
-        dao.insertResourceGroup(2, "sub", "1MB", 1000, 100, null, null, null, null, null, 1L);
+        dao.insertResourceGroup(1, "global", "1MB", "1GB", "20GB", 1000, 100, null, null, null, null, null, null, null, null);
+        dao.insertResourceGroup(2, "sub", "1MB", "1GB", "20GB", 1000, 100, null, null, null, null, null, null, null, 1L);
         try {
-            dao.insertResourceGroup(2, "sub", "1MB", 1000, 100, null, null, null, null, null, 1L);
+            dao.insertResourceGroup(2, "sub", "1MB", "1GB", "20GB", 1000, 100, null, null, null, null, null, null, null, 1L);
         }
         catch (RuntimeException ex) {
             assertTrue(ex instanceof UnableToExecuteStatementException);
@@ -108,18 +114,21 @@ public class TestDbResourceGroupConfigurationManager
     @Test(expectedExceptions = IllegalStateException.class, expectedExceptionsMessageRegExp = "No matching configuration found for: missing")
     public void testMissing()
     {
+        QueryQueueCache queryQueueCache = new QueryQueueCache();
+        ResourceGroupInfoHolder resourceGroupInfoHolder = new ResourceGroupInfoHolder();
+        ConfigurationNotifier configurationNotifier = new ConfigurationNotifier();
         H2DaoProvider daoProvider = setup("test_missing");
         H2ResourceGroupsDao dao = daoProvider.get();
         dao.createResourceGroupsGlobalPropertiesTable();
         dao.createResourceGroupsTable();
         dao.createSelectorsTable();
-        dao.insertResourceGroup(1, "global", "1MB", 1000, 100, "weighted", null, true, "1h", "1d", null);
-        dao.insertResourceGroup(2, "sub", "2MB", 4, 3, null, 5, null, null, null, 1L);
-        dao.insertResourceGroupsGlobalProperties("cpu_quota_period", "1h");
+        dao.insertResourceGroup(1, "global", "1MB", "1GB", "20GB", 1000, 100, "weighted", null, true, "1h", "1d", null, null, null);
+        dao.insertResourceGroup(2, "sub", "2MB", "1GB", "20GB", 4, 3, null, 5, null, null, null, null, null, 1L);
+        dao.upsertResourceGroupsGlobalProperties(CPU_QUOTA_PERIOD, "1h");
         dao.insertSelector(2, null, null);
         DbResourceGroupConfigurationManager manager = new DbResourceGroupConfigurationManager((poolId, listener) -> {
         },
-                daoProvider.get());
+                daoProvider.get(), queryQueueCache, resourceGroupInfoHolder, configurationNotifier);
         InternalResourceGroup missing = new InternalResourceGroup.RootInternalResourceGroup("missing", (group, export) -> { }, directExecutor());
         manager.configure(missing, new SelectionContext(true, "user", Optional.empty(), 1));
     }
@@ -128,18 +137,21 @@ public class TestDbResourceGroupConfigurationManager
     public void testReconfig()
             throws Exception
     {
+        QueryQueueCache queryQueueCache = new QueryQueueCache();
+        ResourceGroupInfoHolder resourceGroupInfoHolder = new ResourceGroupInfoHolder();
+        ConfigurationNotifier configurationNotifier = new ConfigurationNotifier();
         H2DaoProvider daoProvider = setup("test_reconfig");
         H2ResourceGroupsDao dao = daoProvider.get();
         dao.createResourceGroupsGlobalPropertiesTable();
         dao.createResourceGroupsTable();
         dao.createSelectorsTable();
-        dao.insertResourceGroup(1, "global", "1MB", 1000, 100, "weighted", null, true, "1h", "1d", null);
-        dao.insertResourceGroup(2, "sub", "2MB", 4, 3, null, 5, null, null, null, 1L);
+        dao.insertResourceGroup(1, "global", "1MB", "1GB", "20GB", 1000, 100, "weighted", null, true, "1h", "1d", null, null, null);
+        dao.insertResourceGroup(2, "sub", "2MB", "1GB", "20GB", 4, 3, null, 5, null, null, null, null, null, 1L);
         dao.insertSelector(2, null, null);
-        dao.insertResourceGroupsGlobalProperties("cpu_quota_period", "1h");
+        dao.upsertResourceGroupsGlobalProperties(CPU_QUOTA_PERIOD, "1h");
         DbResourceGroupConfigurationManager manager = new DbResourceGroupConfigurationManager(
                 (poolId, listener) -> { },
-                daoProvider.get());
+                daoProvider.get(), queryQueueCache, resourceGroupInfoHolder, configurationNotifier);
         manager.start();
         AtomicBoolean exported = new AtomicBoolean();
         InternalResourceGroup global = new InternalResourceGroup.RootInternalResourceGroup("global", (group, export) -> exported.set(export), directExecutor());
@@ -147,33 +159,58 @@ public class TestDbResourceGroupConfigurationManager
         InternalResourceGroup globalSub = global.getOrCreateSubGroup("sub");
         manager.configure(globalSub, new SelectionContext(true, "user", Optional.empty(), 1));
         // Verify record exists
-        assertEqualsResourceGroup(globalSub, "2MB", 4, 3, FAIR, 5, false, new Duration(Long.MAX_VALUE, MILLISECONDS), new Duration(Long.MAX_VALUE, MILLISECONDS));
-        dao.updateResourceGroup(2, "sub", "3MB", 2, 1, "weighted", 6, true, "1h", "1d", 1L);
+        assertEqualsResourceGroup(globalSub, "2MB", "1GB", "20GB", 4, 3, FAIR, 5, false, new Duration(Long.MAX_VALUE, MILLISECONDS), new Duration(Long.MAX_VALUE, MILLISECONDS), new Duration(Long.MAX_VALUE, MILLISECONDS), new Duration(Long.MAX_VALUE, MILLISECONDS));
+        dao.updateResourceGroup(2, "sub", "3MB", "1GB", "20GB", 2, 1, "weighted", 6, true, "1h", "1d", null, null, 1L);
+        configurationNotifier.reload();
         do {
             MILLISECONDS.sleep(500);
         } while(globalSub.getJmxExport() == false);
         // Verify update
-        assertEqualsResourceGroup(globalSub, "3MB", 2, 1, WEIGHTED, 6, true, new Duration(1, HOURS), new Duration(1, DAYS));
+        assertEqualsResourceGroup(globalSub, "3MB", "1GB", "20GB", 2, 1, WEIGHTED, 6, true, new Duration(1, HOURS), new Duration(1, DAYS), new Duration(Long.MAX_VALUE, MILLISECONDS), new Duration(Long.MAX_VALUE, MILLISECONDS));
         // Verify delete
         dao.deleteSelectors(2);
         dao.deleteResourceGroup(2);
+        configurationNotifier.reload();
         do {
             MILLISECONDS.sleep(500);
         } while(globalSub.getMaxQueuedQueries() != 0 || globalSub.getMaxRunningQueries() != 0);
     }
 
+    @Test(timeOut = 60_000)
+    public void testSelectorSystemTable()
+    {
+        QueryQueueCache queryQueueCache = new QueryQueueCache();
+        ResourceGroupInfoHolder resourceGroupInfoHolder = new ResourceGroupInfoHolder();
+        ConfigurationNotifier configurationNotifier = new ConfigurationNotifier();
+        H2DaoProvider daoProvider = setup("test_reconfig");
+        H2ResourceGroupsDao dao = daoProvider.get();
+        dao.createResourceGroupsGlobalPropertiesTable();
+        dao.createResourceGroupsTable();
+        dao.createSelectorsTable();
+        DbResourceGroupConfigurationManager manager = new DbResourceGroupConfigurationManager(
+                (poolId, listener) -> { },
+                daoProvider.get(), queryQueueCache, resourceGroupInfoHolder, configurationNotifier);
+        manager.start();
+    }
+
     private static void assertEqualsResourceGroup(
             InternalResourceGroup group,
             String softMemoryLimit,
+            String hardMemoryLimit,
+            String maxMemoryPerQuery,
             int maxQueued,
             int maxRunning,
             SchedulingPolicy schedulingPolicy,
             int schedulingWeight,
             boolean jmxExport,
             Duration softCpuLimit,
-            Duration hardCpuLimit)
+            Duration hardCpuLimit,
+            Duration queuedTimeout,
+            Duration runningTimeout)
     {
         assertEquals(group.getSoftMemoryLimit(), DataSize.valueOf(softMemoryLimit));
+        assertEquals(group.getHardMemoryLimit(), DataSize.valueOf(hardMemoryLimit));
+        assertEquals(group.getMaxMemoryPerQuery(), DataSize.valueOf(maxMemoryPerQuery));
         assertEquals(group.getInfo().getMaxQueuedQueries(), maxQueued);
         assertEquals(group.getInfo().getMaxRunningQueries(), maxRunning);
         assertEquals(group.getSchedulingPolicy(), schedulingPolicy);
@@ -181,5 +218,7 @@ public class TestDbResourceGroupConfigurationManager
         assertEquals(group.getJmxExport(), jmxExport);
         assertEquals(group.getSoftCpuLimit(), softCpuLimit);
         assertEquals(group.getHardCpuLimit(), hardCpuLimit);
+        assertEquals(group.getQueuedTimeout(), queuedTimeout);
+        assertEquals(group.getRunningTimeout(), runningTimeout);
     }
 }

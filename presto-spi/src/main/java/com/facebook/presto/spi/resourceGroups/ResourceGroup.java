@@ -16,6 +16,8 @@ package com.facebook.presto.spi.resourceGroups;
 import io.airlift.units.DataSize;
 import io.airlift.units.Duration;
 
+import java.util.Optional;
+
 public interface ResourceGroup
 {
     ResourceGroupId getId();
@@ -28,7 +30,22 @@ public interface ResourceGroup
      */
     void setSoftMemoryLimit(DataSize limit);
 
+    DataSize getHardMemoryLimit();
+
+    /**
+     * Threshold where queries will be killed until resource group is
+     * within the limit
+     */
+    void setHardMemoryLimit(DataSize limit);
+
     Duration getSoftCpuLimit();
+
+    /**
+     * Threshold where a query will be killed
+     */
+    void setMaxMemoryPerQuery(DataSize limit);
+
+    DataSize getMaxMemoryPerQuery();
 
     /**
      * Threshold on total distributed CPU usage after which max running queries will be reduced.
@@ -86,4 +103,14 @@ public interface ResourceGroup
      * Whether to export statistics about this group and allow configuration via JMX.
      */
     void setJmxExport(boolean export);
+
+    Duration getQueuedTimeout();
+
+    void setQueuedTimeout(Duration queuedTimeout);
+
+    Duration getRunningTimeout();
+
+    void setRunningTimeout(Duration runningTimeout);
+
+    Optional<QueryQueueInfo> getQueryQueueInfo();
 }

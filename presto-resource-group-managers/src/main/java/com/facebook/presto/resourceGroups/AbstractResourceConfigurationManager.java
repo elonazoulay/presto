@@ -13,16 +13,19 @@
  */
 package com.facebook.presto.resourceGroups;
 
+import com.facebook.presto.resourceGroups.systemtables.QueryQueueCache;
 import com.facebook.presto.spi.memory.ClusterMemoryPoolManager;
 import com.facebook.presto.spi.memory.MemoryPoolId;
 import com.facebook.presto.spi.resourceGroups.ResourceGroup;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupConfigurationManager;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupSelector;
 import com.facebook.presto.spi.resourceGroups.SelectionContext;
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import io.airlift.units.DataSize;
 import io.airlift.units.Duration;
 
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 import javax.annotation.concurrent.GuardedBy;
 
 import java.util.AbstractMap;
@@ -34,7 +37,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
 
-import static com.facebook.presto.spi.resourceGroups.SchedulingPolicy.WEIGHTED;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 import static io.airlift.units.DataSize.Unit.BYTE;
@@ -46,50 +48,51 @@ public abstract class AbstractResourceConfigurationManager
     @GuardedBy("generalPoolMemoryFraction")
     private final Map<ResourceGroup, Double> generalPoolMemoryFraction = new HashMap<>();
     @GuardedBy("generalPoolMemoryFraction")
+    private final Map<ResourceGroup, Double> generalPoolMemoryFractionHard = new HashMap<>();
+    @GuardedBy("generalPoolMemoryFraction")
     private long generalPoolBytes;
+    private final QueryQueueCache queryQueueCache;
 
     protected abstract Optional<Duration> getCpuQuotaPeriodMillis();
     protected abstract List<ResourceGroupSpec> getRootGroups();
 
-    protected void validateRootGroups(ManagerSpec managerSpec)
+    public static void validateRootGroups(ManagerSpec managerSpec)
     {
         Queue<ResourceGroupSpec> groups = new LinkedList<>(managerSpec.getRootGroups());
+        boolean cpuQuotaPeriodIsPresent = managerSpec.getCpuQuotaPeriod().isPresent();
         while (!groups.isEmpty()) {
             ResourceGroupSpec group = groups.poll();
             groups.addAll(group.getSubGroups());
-            if (group.getSoftCpuLimit().isPresent() || group.getHardCpuLimit().isPresent()) {
-                checkArgument(managerSpec.getCpuQuotaPeriod().isPresent(), "cpuQuotaPeriod must be specified to use cpu limits on group: %s", group.getName());
-            }
-            if (group.getSoftCpuLimit().isPresent()) {
-                checkArgument(group.getHardCpuLimit().isPresent(), "Must specify hard CPU limit in addition to soft limit");
-                checkArgument(group.getSoftCpuLimit().get().compareTo(group.getHardCpuLimit().get()) <= 0, "Soft CPU limit cannot be greater than hard CPU limit");
-            }
-            if (group.getSchedulingPolicy().isPresent()) {
-                if (group.getSchedulingPolicy().get() == WEIGHTED) {
-                    for (ResourceGroupSpec subGroup : group.getSubGroups()) {
-                        checkArgument(subGroup.getSchedulingWeight().isPresent(), "Must specify scheduling weight for each sub group when using \"weighted\" scheduling policy");
-                    }
-                }
-                else {
-                    for (ResourceGroupSpec subGroup : group.getSubGroups()) {
-                        checkArgument(!subGroup.getSchedulingWeight().isPresent(), "Must use \"weighted\" scheduling policy when using scheduling weight");
-                    }
-                }
-            }
+            validateGroupSpec(cpuQuotaPeriodIsPresent, group);
         }
     }
 
-    protected List<ResourceGroupSelector> buildSelectors(ManagerSpec managerSpec)
+    public static void validateGroupSpec(boolean cpuQuotaPeriodIsPresent, ResourceGroupSpec group)
     {
-        ImmutableList.Builder<ResourceGroupSelector> selectors = ImmutableList.builder();
+        validateCpuQuotaPeriodForGroup(cpuQuotaPeriodIsPresent, group);
+        if (group.getSoftCpuLimit().isPresent()) {
+            checkArgument(group.getHardCpuLimit().isPresent(), "Must specify hard CPU limit in addition to soft limit");
+            checkArgument(group.getSoftCpuLimit().get().compareTo(group.getHardCpuLimit().get()) <= 0, "Soft CPU limit cannot be greater than hard CPU limit");
+        }
+    }
+
+    public static void validateCpuQuotaPeriodForGroup(boolean cpuQuotaPeriodIsPresent, ResourceGroupSpec group)
+    {
+        if (group.getSoftCpuLimit().isPresent() || group.getHardCpuLimit().isPresent()) {
+            checkArgument(cpuQuotaPeriodIsPresent, "cpuQuotaPeriod must be specified to use cpu limits on group: %s", group.getName());
+        }
+    }
+    public static Map<SelectorSpec, ResourceGroupSelector> buildSelectors(ManagerSpec managerSpec)
+    {
+        ImmutableMap.Builder<SelectorSpec, ResourceGroupSelector> selectors = ImmutableMap.builder();
         for (SelectorSpec spec : managerSpec.getSelectors()) {
-            validateSelectors(managerSpec.getRootGroups(), spec.getGroup().getSegments());
-            selectors.add(new StaticSelector(spec.getUserRegex(), spec.getSourceRegex(), spec.getGroup()));
+            validateSelector(managerSpec.getRootGroups(), spec.getGroup().getSegments());
+            selectors.put(spec, new StaticSelector(spec.getUserRegex(), spec.getSourceRegex(), spec.getGroup()));
         }
         return selectors.build();
     }
 
-    private void validateSelectors(List<ResourceGroupSpec> groups, List<ResourceGroupNameTemplate> selectorGroups)
+    public static void validateSelector(List<ResourceGroupSpec> groups, List<ResourceGroupNameTemplate> selectorGroups)
     {
         StringBuilder fullyQualifiedGroupName = new StringBuilder();
         while (!selectorGroups.isEmpty()) {
@@ -108,8 +111,9 @@ public abstract class AbstractResourceConfigurationManager
         }
     }
 
-    protected AbstractResourceConfigurationManager(ClusterMemoryPoolManager memoryPoolManager)
+    protected AbstractResourceConfigurationManager(ClusterMemoryPoolManager memoryPoolManager, QueryQueueCache queryQueueCache)
     {
+        this.queryQueueCache = queryQueueCache;
         memoryPoolManager.addChangeListener(new MemoryPoolId("general"), poolInfo -> {
             Map<ResourceGroup, DataSize> memoryLimits = new HashMap<>();
             synchronized (generalPoolMemoryFraction) {
@@ -118,12 +122,28 @@ public abstract class AbstractResourceConfigurationManager
                     // setSoftMemoryLimit() acquires a lock on the root group of its tree, which could cause a deadlock if done while holding the "generalPoolMemoryFraction" lock
                     memoryLimits.put(entry.getKey(), new DataSize(bytes, BYTE));
                 }
+                for (Map.Entry<ResourceGroup, Double> entry : generalPoolMemoryFractionHard.entrySet()) {
+                    double bytes = poolInfo.getMaxBytes() * entry.getValue();
+                    entry.getKey().setHardMemoryLimit(new DataSize(bytes, BYTE));
+                }
                 generalPoolBytes = poolInfo.getMaxBytes();
             }
             for (Map.Entry<ResourceGroup, DataSize> entry : memoryLimits.entrySet()) {
                 entry.getKey().setSoftMemoryLimit(entry.getValue());
             }
         });
+    }
+
+    @PostConstruct
+    public void startCache()
+    {
+        queryQueueCache.start();
+    }
+
+    @PreDestroy
+    public void destroyCache()
+    {
+        queryQueueCache.destroy();
     }
 
     protected Map.Entry<ResourceGroupIdTemplate, ResourceGroupSpec> getMatchingSpec(ResourceGroup group, SelectionContext context)
@@ -175,15 +195,28 @@ public abstract class AbstractResourceConfigurationManager
                 group.setSoftMemoryLimit(new DataSize(generalPoolBytes * fraction, BYTE));
             }
         }
+        if (match.getHardMemoryLimit().isPresent()) {
+            group.setHardMemoryLimit(match.getHardMemoryLimit().get());
+        }
+        else {
+            synchronized (generalPoolMemoryFraction) {
+                double fraction = match.getHardMemoryLimitFraction().get();
+                generalPoolMemoryFractionHard.put(group, fraction);
+                group.setHardMemoryLimit(new DataSize(generalPoolBytes * fraction, BYTE));
+            }
+        }
+        match.getMaxMemoryPerQuery().ifPresent(limit -> group.setMaxMemoryPerQuery(limit));
         group.setMaxQueuedQueries(match.getMaxQueued());
         group.setMaxRunningQueries(match.getMaxRunning());
+        match.getQueuedTimeout().ifPresent(timeout -> group.setQueuedTimeout(timeout));
+        match.getRunningTimeout().ifPresent(timeout -> group.setRunningTimeout(timeout));
         if (match.getSchedulingPolicy().isPresent()) {
             group.setSchedulingPolicy(match.getSchedulingPolicy().get());
         }
         if (match.getSchedulingWeight().isPresent()) {
             group.setSchedulingWeight(match.getSchedulingWeight().get());
         }
-        if (match.getJmxExport().isPresent()) {
+        if (match.getJmxExport().isPresent() && match.getJmxExport().get() != group.getJmxExport()) {
             group.setJmxExport(match.getJmxExport().get());
         }
         if (match.getSoftCpuLimit().isPresent() || match.getHardCpuLimit().isPresent()) {
@@ -206,5 +239,6 @@ public abstract class AbstractResourceConfigurationManager
         if (match.getHardCpuLimit().isPresent()) {
             group.setHardCpuLimit(match.getHardCpuLimit().get());
         }
+        queryQueueCache.addGroup(group);
     }
 }

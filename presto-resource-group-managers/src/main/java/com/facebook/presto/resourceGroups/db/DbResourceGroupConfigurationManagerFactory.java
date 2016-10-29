@@ -13,12 +13,13 @@
  */
 package com.facebook.presto.resourceGroups.db;
 
+import com.facebook.presto.resourceGroups.systemtables.QueryQueueCache;
+import com.facebook.presto.resourceGroups.systemtables.ResourceGroupInfoHolder;
 import com.facebook.presto.spi.classloader.ThreadContextClassLoader;
 import com.facebook.presto.spi.memory.ClusterMemoryPoolManager;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupConfigurationManager;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupConfigurationManagerContext;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupConfigurationManagerFactory;
-import com.google.common.base.Throwables;
 import com.google.inject.Injector;
 import io.airlift.bootstrap.Bootstrap;
 import io.airlift.json.JsonModule;
@@ -31,10 +32,16 @@ public class DbResourceGroupConfigurationManagerFactory
         implements ResourceGroupConfigurationManagerFactory
 {
     private final ClassLoader classLoader;
+    private final QueryQueueCache queryQueueCache;
+    private final ResourceGroupInfoHolder resourceGroupInfoHolder;
+    private final ConfigurationNotifier configurationNotifier;
 
-    public DbResourceGroupConfigurationManagerFactory(ClassLoader classLoader)
+    public DbResourceGroupConfigurationManagerFactory(ClassLoader classLoader, QueryQueueCache queryQueueCache, ResourceGroupInfoHolder resourceGroupInfoHolder, ConfigurationNotifier configurationNotifier)
     {
         this.classLoader = requireNonNull(classLoader, "classLoader is null");
+        this.queryQueueCache = requireNonNull(queryQueueCache, "queryQueueCache is null");
+        this.resourceGroupInfoHolder = requireNonNull(resourceGroupInfoHolder, "resourceGroupInfoHolder is null");
+        this.configurationNotifier = requireNonNull(configurationNotifier, "configurationNotifier is null");
     }
 
     @Override
@@ -50,6 +57,9 @@ public class DbResourceGroupConfigurationManagerFactory
             Bootstrap app = new Bootstrap(
                     new JsonModule(),
                     new DbResourceGroupsModule(),
+                    binder -> binder.bind(QueryQueueCache.class).toInstance(queryQueueCache),
+                    binder -> binder.bind(ResourceGroupInfoHolder.class).toInstance(resourceGroupInfoHolder),
+                    binder -> binder.bind(ConfigurationNotifier.class).toInstance(configurationNotifier),
                     binder -> binder.bind(ClusterMemoryPoolManager.class).toInstance(context.getMemoryPoolManager())
             );
 
@@ -61,7 +71,7 @@ public class DbResourceGroupConfigurationManagerFactory
             return injector.getInstance(DbResourceGroupConfigurationManager.class);
         }
         catch (Exception e) {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e);
         }
     }
 }

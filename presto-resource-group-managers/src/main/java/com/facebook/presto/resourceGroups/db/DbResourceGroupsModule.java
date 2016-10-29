@@ -28,6 +28,7 @@ public class DbResourceGroupsModule
     {
         configBinder(binder).bindConfig(DbResourceGroupConfig.class);
         binder.bind(ResourceGroupsDao.class).toProvider(MysqlDaoProvider.class).in(Scopes.SINGLETON);
+        // binder.bind(AbstractResourceConfigurationManager.class).to(DbResourceGroupConfigurationManager.class);
         binder.bind(DbResourceGroupConfigurationManager.class).in(Scopes.SINGLETON);
         binder.bind(ResourceGroupConfigurationManager.class).to(DbResourceGroupConfigurationManager.class).in(Scopes.SINGLETON);
     }

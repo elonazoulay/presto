@@ -13,11 +13,13 @@
  */
 package com.facebook.presto.resourceGroups;
 
+import com.facebook.presto.resourceGroups.systemtables.QueryQueueCache;
 import com.facebook.presto.spi.memory.ClusterMemoryPoolManager;
 import com.facebook.presto.spi.resourceGroups.ResourceGroup;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupSelector;
 import com.facebook.presto.spi.resourceGroups.SelectionContext;
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableList;
 import io.airlift.json.JsonCodec;
 import io.airlift.units.Duration;
 
@@ -40,9 +42,9 @@ public class FileResourceGroupConfigurationManager
     private final Optional<Duration> cpuQuotaPeriodMillis;
 
     @Inject
-    public FileResourceGroupConfigurationManager(ClusterMemoryPoolManager memoryPoolManager, FileResourceGroupConfig config, JsonCodec<ManagerSpec> codec)
+    public FileResourceGroupConfigurationManager(ClusterMemoryPoolManager memoryPoolManager, FileResourceGroupConfig config, JsonCodec<ManagerSpec> codec, QueryQueueCache queryQueueCache)
     {
-        super(memoryPoolManager);
+        super(memoryPoolManager, queryQueueCache);
         requireNonNull(config, "config is null");
         requireNonNull(codec, "codec is null");
 
@@ -56,7 +58,7 @@ public class FileResourceGroupConfigurationManager
         this.rootGroups = managerSpec.getRootGroups();
         this.cpuQuotaPeriodMillis = managerSpec.getCpuQuotaPeriod();
         validateRootGroups(managerSpec);
-        this.selectors = buildSelectors(managerSpec);
+        this.selectors = ImmutableList.copyOf(buildSelectors(managerSpec).values());
     }
 
     @Override

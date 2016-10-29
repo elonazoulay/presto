@@ -13,11 +13,14 @@
  */
 package com.facebook.presto.resourceGroups;
 
+import com.facebook.presto.spi.resourceGroups.QueryQueueInfo;
 import com.facebook.presto.spi.resourceGroups.ResourceGroup;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupId;
 import com.facebook.presto.spi.resourceGroups.SchedulingPolicy;
 import io.airlift.units.DataSize;
 import io.airlift.units.Duration;
+
+import java.util.Optional;
 
 import static java.util.Objects.requireNonNull;
 
@@ -25,7 +28,9 @@ public class TestingResourceGroup
         implements ResourceGroup
 {
     private final ResourceGroupId id;
-    private DataSize memoryLimit;
+    private DataSize softMemoryLimit;
+    private DataSize hardMemoryLimit;
+    private DataSize maxMemoryPerQuery;
     private Duration softCpuLimit;
     private Duration hardCpuLimit;
     private long quotaGenerationRate;
@@ -34,6 +39,8 @@ public class TestingResourceGroup
     private int schedulingWeight;
     private SchedulingPolicy policy;
     private boolean jmxExport;
+    private Duration queuedTimeout;
+    private Duration runningTimeout;
 
     public TestingResourceGroup(ResourceGroupId id)
     {
@@ -49,13 +56,37 @@ public class TestingResourceGroup
     @Override
     public DataSize getSoftMemoryLimit()
     {
-        return memoryLimit;
+        return softMemoryLimit;
     }
 
     @Override
     public void setSoftMemoryLimit(DataSize limit)
     {
-        memoryLimit = limit;
+        softMemoryLimit = limit;
+    }
+
+    @Override
+    public DataSize getHardMemoryLimit()
+    {
+        return hardMemoryLimit;
+    }
+
+    @Override
+    public void setHardMemoryLimit(DataSize limit)
+    {
+        hardMemoryLimit = limit;
+    }
+
+    @Override
+    public DataSize getMaxMemoryPerQuery()
+    {
+        return maxMemoryPerQuery;
+    }
+
+    @Override
+    public void setMaxMemoryPerQuery(DataSize limit)
+    {
+        maxMemoryPerQuery = limit;
     }
 
     @Override
@@ -152,5 +183,35 @@ public class TestingResourceGroup
     public void setJmxExport(boolean export)
     {
         jmxExport = export;
+    }
+
+    @Override
+    public Duration getQueuedTimeout()
+    {
+        return queuedTimeout;
+    }
+
+    @Override
+    public void setQueuedTimeout(Duration queuedTimeout)
+    {
+        this.queuedTimeout = queuedTimeout;
+    }
+
+    @Override
+    public Duration getRunningTimeout()
+    {
+        return runningTimeout;
+    }
+
+    @Override
+    public void setRunningTimeout(Duration runningTimeout)
+    {
+        this.runningTimeout = runningTimeout;
+    }
+
+    @Override
+    public Optional<QueryQueueInfo> getQueryQueueInfo()
+    {
+        return Optional.empty();
     }
 }

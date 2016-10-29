@@ -38,7 +38,9 @@ public class ResourceGroupSpec
 
     private final ResourceGroupNameTemplate name;
     private final Optional<DataSize> softMemoryLimit;
+    private final Optional<DataSize> hardMemoryLimit;
     private final Optional<Double> softMemoryLimitFraction;
+    private final Optional<Double> hardMemoryLimitFraction;
     private final int maxQueued;
     private final int maxRunning;
     private final Optional<SchedulingPolicy> schedulingPolicy;
@@ -47,11 +49,100 @@ public class ResourceGroupSpec
     private final Optional<Boolean> jmxExport;
     private final Optional<Duration> softCpuLimit;
     private final Optional<Duration> hardCpuLimit;
+    private final Optional<Duration> queuedTimeout;
+    private final Optional<Duration> runningTimeout;
+    private final Optional<DataSize> maxMemoryPerQuery;
+
+    public static ResourceGroupSpec copyAndAddSubGroups(ResourceGroupSpec spec, List<ResourceGroupSpec> subGroups)
+    {
+        ImmutableList.Builder<ResourceGroupSpec> builder = ImmutableList.builder();
+        builder.addAll(spec.subGroups);
+        builder.addAll(subGroups);
+        return new ResourceGroupSpec(
+                spec.name,
+                spec.softMemoryLimit,
+                spec.hardMemoryLimit,
+                spec.softMemoryLimitFraction,
+                spec.hardMemoryLimitFraction,
+                spec.maxMemoryPerQuery,
+                spec.maxQueued,
+                spec.maxRunning,
+                spec.schedulingPolicy,
+                spec.schedulingWeight,
+                builder.build(),
+                spec.jmxExport,
+                spec.softCpuLimit,
+                spec.hardCpuLimit,
+                spec.queuedTimeout,
+                spec.runningTimeout
+        );
+    }
+
+    public static ResourceGroupSpec copyAndUpdateScheduling(ResourceGroupSpec spec, Optional<SchedulingPolicy> schedulingPolicy)
+    {
+        return new ResourceGroupSpec(
+                spec.name,
+                spec.softMemoryLimit,
+                spec.hardMemoryLimit,
+                spec.softMemoryLimitFraction,
+                spec.hardMemoryLimitFraction,
+                spec.maxMemoryPerQuery,
+                spec.maxQueued,
+                spec.maxRunning,
+                schedulingPolicy,
+                spec.schedulingWeight,
+                spec.subGroups,
+                spec.jmxExport,
+                spec.softCpuLimit,
+                spec.hardCpuLimit,
+                spec.queuedTimeout,
+                spec.runningTimeout
+        );
+    }
+
+    private ResourceGroupSpec(
+            ResourceGroupNameTemplate name,
+            Optional<DataSize> softMemoryLimit,
+            Optional<DataSize> hardMemoryLimit,
+            Optional<Double> softMemoryLimitFraction,
+            Optional<Double> hardMemoryLimitFraction,
+            Optional<DataSize> maxMemoryPerQuery,
+            int maxQueued,
+            int maxRunning,
+            Optional<SchedulingPolicy> schedulingPolicy,
+            Optional<Integer> schedulingWeight,
+            List<ResourceGroupSpec> subGroups,
+            Optional<Boolean> jmxExport,
+            Optional<Duration> softCpuLimit,
+            Optional<Duration> hardCpuLimit,
+            Optional<Duration> queuedTimeout,
+            Optional<Duration> runningTimeout)
+    {
+        this.name = name;
+        this.softMemoryLimit = softMemoryLimit;
+        this.hardMemoryLimit = hardMemoryLimit;
+        this.softMemoryLimitFraction = softMemoryLimitFraction;
+        this.hardMemoryLimitFraction = hardMemoryLimitFraction;
+        this.maxMemoryPerQuery = maxMemoryPerQuery;
+        this.maxQueued = maxQueued;
+        this.maxRunning = maxRunning;
+        this.schedulingPolicy = schedulingPolicy;
+        this.schedulingWeight = schedulingWeight;
+        this.subGroups = ImmutableList.copyOf(requireNonNull(subGroups, "subGroups is null"));
+        checkDuplicateSubGroup(this.subGroups);
+        this.jmxExport = jmxExport;
+        this.softCpuLimit = softCpuLimit;
+        this.hardCpuLimit = hardCpuLimit;
+        this.queuedTimeout = queuedTimeout;
+        this.runningTimeout = runningTimeout;
+    }
 
     @JsonCreator
     public ResourceGroupSpec(
             @JsonProperty("name") ResourceGroupNameTemplate name,
             @JsonProperty("softMemoryLimit") String softMemoryLimit,
+            @JsonProperty("hardMemoryLimit") String hardMemoryLimit,
+            @JsonProperty("maxMemoryPerQuery") String maxMemoryPerQuery,
             @JsonProperty("maxQueued") int maxQueued,
             @JsonProperty("maxRunning") int maxRunning,
             @JsonProperty("schedulingPolicy") Optional<String> schedulingPolicy,
@@ -59,11 +150,16 @@ public class ResourceGroupSpec
             @JsonProperty("subGroups") Optional<List<ResourceGroupSpec>> subGroups,
             @JsonProperty("jmxExport") Optional<Boolean> jmxExport,
             @JsonProperty("softCpuLimit") Optional<Duration> softCpuLimit,
-            @JsonProperty("hardCpuLimit") Optional<Duration> hardCpuLimit)
+            @JsonProperty("hardCpuLimit") Optional<Duration> hardCpuLimit,
+            @JsonProperty("queuedTimeout") Optional<Duration> queuedTimeout,
+            @JsonProperty("runningTimeout") Optional<Duration> runningTimeout
+    )
     {
         this.softCpuLimit = requireNonNull(softCpuLimit, "softCpuLimit is null");
         this.hardCpuLimit = requireNonNull(hardCpuLimit, "hardCpuLimit is null");
         this.jmxExport = requireNonNull(jmxExport, "jmxExport is null");
+        this.queuedTimeout = requireNonNull(queuedTimeout, "queuedTimeout is null");
+        this.runningTimeout = requireNonNull(runningTimeout, "runningTimeout is null");
         this.name = requireNonNull(name, "name is null");
         checkArgument(maxQueued >= 0, "maxQueued is negative");
         this.maxQueued = maxQueued;
@@ -85,9 +181,27 @@ public class ResourceGroupSpec
         }
         this.softMemoryLimit = absoluteSize;
         this.softMemoryLimitFraction = fraction;
+        requireNonNull(hardMemoryLimit, "hardMemoryLimit is null");
+        matcher = PERCENT_PATTERN.matcher(hardMemoryLimit);
+        if (matcher.matches()) {
+            absoluteSize = Optional.empty();
+            fraction = Optional.of(Double.parseDouble(matcher.group(1)) / 100.0);
+        }
+        else {
+            absoluteSize = Optional.of(DataSize.valueOf(hardMemoryLimit));
+            fraction = Optional.empty();
+        }
+        this.hardMemoryLimit = absoluteSize;
+        this.hardMemoryLimitFraction = fraction;
+        this.maxMemoryPerQuery = Optional.ofNullable(maxMemoryPerQuery).map(DataSize::valueOf);
         this.subGroups = ImmutableList.copyOf(requireNonNull(subGroups, "subGroups is null").orElse(ImmutableList.of()));
+        checkDuplicateSubGroup(this.subGroups);
+    }
+
+    private static void checkDuplicateSubGroup(List<ResourceGroupSpec> subGroups)
+    {
         Set<ResourceGroupNameTemplate> names = new HashSet<>();
-        for (ResourceGroupSpec subGroup : this.subGroups) {
+        for (ResourceGroupSpec subGroup : subGroups) {
             checkArgument(!names.contains(subGroup.getName()), "Duplicated sub group: %s", subGroup.getName());
             names.add(subGroup.getName());
         }
@@ -101,6 +215,21 @@ public class ResourceGroupSpec
     public Optional<Double> getSoftMemoryLimitFraction()
     {
         return softMemoryLimitFraction;
+    }
+
+    public Optional<DataSize> getHardMemoryLimit()
+    {
+        return hardMemoryLimit;
+    }
+
+    public Optional<Double> getHardMemoryLimitFraction()
+    {
+        return hardMemoryLimitFraction;
+    }
+
+    public Optional<DataSize> getMaxMemoryPerQuery()
+    {
+        return maxMemoryPerQuery;
     }
 
     public int getMaxQueued()
@@ -148,6 +277,16 @@ public class ResourceGroupSpec
         return hardCpuLimit;
     }
 
+    public Optional<Duration> getQueuedTimeout()
+    {
+        return queuedTimeout;
+    }
+
+    public Optional<Duration> getRunningTimeout()
+    {
+        return runningTimeout;
+    }
+
     @Override
     public boolean equals(Object other)
     {
@@ -160,6 +299,8 @@ public class ResourceGroupSpec
         ResourceGroupSpec that = (ResourceGroupSpec) other;
         return (name.equals(that.name) &&
                 softMemoryLimit.equals(that.softMemoryLimit) &&
+                hardMemoryLimit.equals(that.hardMemoryLimit) &&
+                maxMemoryPerQuery.equals(that.maxMemoryPerQuery) &&
                 maxQueued == that.maxQueued &&
                 maxRunning == that.maxRunning &&
                 schedulingPolicy.equals(that.schedulingPolicy) &&
@@ -167,7 +308,9 @@ public class ResourceGroupSpec
                 subGroups.equals(that.subGroups) &&
                 jmxExport.equals(that.jmxExport) &&
                 softCpuLimit.equals(that.softCpuLimit) &&
-                hardCpuLimit.equals(that.hardCpuLimit));
+                hardCpuLimit.equals(that.hardCpuLimit) &&
+                queuedTimeout.equals(that.queuedTimeout) &&
+                runningTimeout.equals(that.runningTimeout));
     }
 
     // Subgroups not included, used to determine whether a group needs to be reconfigured
@@ -178,13 +321,17 @@ public class ResourceGroupSpec
         }
         return (name.equals(other.name) &&
                 softMemoryLimit.equals(other.softMemoryLimit) &&
+                hardMemoryLimit.equals(other.hardMemoryLimit) &&
+                maxMemoryPerQuery.equals(other.maxMemoryPerQuery) &&
                 maxQueued == other.maxQueued &&
                 maxRunning == other.maxRunning &&
                 schedulingPolicy.equals(other.schedulingPolicy) &&
                 schedulingWeight.equals(other.schedulingWeight) &&
                 jmxExport.equals(other.jmxExport) &&
                 softCpuLimit.equals(other.softCpuLimit) &&
-                hardCpuLimit.equals(other.hardCpuLimit));
+                hardCpuLimit.equals(other.hardCpuLimit) &&
+                queuedTimeout.equals(other.queuedTimeout) &&
+                runningTimeout.equals(other.runningTimeout));
     }
 
     @Override
@@ -193,6 +340,8 @@ public class ResourceGroupSpec
         return Objects.hash(
                 name,
                 softMemoryLimit,
+                hardMemoryLimit,
+                maxMemoryPerQuery,
                 maxQueued,
                 maxRunning,
                 schedulingPolicy,
@@ -200,7 +349,9 @@ public class ResourceGroupSpec
                 subGroups,
                 jmxExport,
                 softCpuLimit,
-                hardCpuLimit);
+                hardCpuLimit,
+                queuedTimeout,
+                runningTimeout);
     }
 
     @Override
@@ -209,6 +360,8 @@ public class ResourceGroupSpec
         return toStringHelper(this)
                 .add("name", name)
                 .add("softMemoryLimit", softMemoryLimit)
+                .add("hardMemoryLimit", hardMemoryLimit)
+                .add("maxMemoryPerQuery", maxMemoryPerQuery)
                 .add("maxQueued", maxQueued)
                 .add("maxRunning", maxRunning)
                 .add("schedulingPolicy", schedulingPolicy)
@@ -216,6 +369,8 @@ public class ResourceGroupSpec
                 .add("jmxExport", jmxExport)
                 .add("softCpuLimit", softCpuLimit)
                 .add("hardCpuLimit", hardCpuLimit)
+                .add("queuedTimeout", queuedTimeout)
+                .add("runningTimeout", runningTimeout)
                 .toString();
     }
 }

@@ -22,6 +22,7 @@ import com.google.common.collect.ImmutableList;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.checkArgument;
@@ -49,9 +50,22 @@ public class ResourceGroupIdTemplate
 
     public static ResourceGroupIdTemplate fromSegments(List<ResourceGroupNameTemplate> segments)
     {
-        return new ResourceGroupIdTemplate(String.join(".", segments.stream().map(ResourceGroupNameTemplate::toString).collect(Collectors.toList())));
+        return new ResourceGroupIdTemplate(String.join(".", requireNonNull(segments, "segments is null").stream().map(ResourceGroupNameTemplate::toString).collect(Collectors.toList())));
     }
 
+    public static Optional<ResourceGroupIdTemplate> parentOf(ResourceGroupIdTemplate resourceGroupIdTemplate)
+    {
+        List<ResourceGroupNameTemplate> segments = requireNonNull(resourceGroupIdTemplate, "resourceGroupIdTemplate is null").getSegments();
+        if (segments.size() == 1) {
+            return Optional.empty();
+        }
+        return Optional.of(fromSegments(segments.subList(0, segments.size() - 1)));
+    }
+
+    public static ResourceGroupNameTemplate getNameTemplate(ResourceGroupIdTemplate resourceGroupIdTemplate)
+    {
+        return resourceGroupIdTemplate.getSegments().get(resourceGroupIdTemplate.getSegments().size() - 1);
+    }
     public ResourceGroupId expandTemplate(SelectionContext context)
     {
         ResourceGroupId id = null;
