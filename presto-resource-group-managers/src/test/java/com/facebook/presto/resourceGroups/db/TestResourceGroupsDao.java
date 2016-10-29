@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
 
+import static com.facebook.presto.resourceGroups.db.ResourceGroupGlobalProperties.CPU_QUOTA_PERIOD;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 
@@ -49,19 +50,19 @@ public class TestResourceGroupsDao
 
     private static void testResourceGroupInsert(H2ResourceGroupsDao dao, Map<Long, ResourceGroupSpecBuilder> map)
     {
-        dao.insertResourceGroup(1, "global", "100%", 100, 100, null, null, null, null, null, null);
-        dao.insertResourceGroup(2, "bi", "50%", 50, 50, null, null, null, null, null, 1L);
+        dao.insertResourceGroup(1, "global", "100%", "100%", "20GB", 100, 100, null, null, null, null, null, null, null, null);
+        dao.insertResourceGroup(2, "bi", "50%", "100%", "20GB", 50, 50, null, null, null, null, null, null, null, 1L);
         List<ResourceGroupSpecBuilder> records = dao.getResourceGroups();
         assertEquals(records.size(), 2);
-        map.put(1L, new ResourceGroupSpecBuilder(1, new ResourceGroupNameTemplate("global"), "100%", 100, 100, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), null));
-        map.put(2L, new ResourceGroupSpecBuilder(2, new ResourceGroupNameTemplate("bi"), "50%", 50, 50, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.of(1L)));
+        map.put(1L, new ResourceGroupSpecBuilder(1, new ResourceGroupNameTemplate("global"), "100%", "100%", "20GB", 100, 100, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), null));
+        map.put(2L, new ResourceGroupSpecBuilder(2, new ResourceGroupNameTemplate("bi"), "50%", "100%", "20GB", 50, 50, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.of(1L)));
         compareResourceGroups(map, records);
     }
 
     private static void testResourceGroupUpdate(H2ResourceGroupsDao dao, Map<Long, ResourceGroupSpecBuilder> map)
     {
-        dao.updateResourceGroup(2, "bi", "40%", 40, 30, null, null, true, null, null, 1L);
-        ResourceGroupSpecBuilder updated = new ResourceGroupSpecBuilder(2, new ResourceGroupNameTemplate("bi"), "40%", 40, 30, Optional.empty(), Optional.empty(), Optional.of(true), Optional.empty(), Optional.empty(), Optional.of(1L));
+        dao.updateResourceGroup(2, "bi", "40%", "100%", "20GB", 40, 30, null, null, true, null, null, null, null, 1L);
+        ResourceGroupSpecBuilder updated = new ResourceGroupSpecBuilder(2, new ResourceGroupNameTemplate("bi"), "40%", "100%", "20GB", 40, 30, Optional.empty(), Optional.empty(), Optional.of(true), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.of(1L));
         map.put(2L, updated);
         compareResourceGroups(map, dao.getResourceGroups());
     }
@@ -101,9 +102,9 @@ public class TestResourceGroupsDao
                         3L,
                         Optional.of(Pattern.compile("admin_user")),
                         Optional.of(Pattern.compile(".*"))));
-        dao.insertResourceGroup(1, "admin", "100%", 100, 100, null, null, null, null, null, null);
-        dao.insertResourceGroup(2, "ping_query", "50%", 50, 50, null, null, null, null, null, 1L);
-        dao.insertResourceGroup(3, "config", "50%", 50, 50, null, null, null, null, null, 1L);
+        dao.insertResourceGroup(1, "admin", "100%", "100%", "20GB", 100, 100, null, null, null, null, null, null, null, null);
+        dao.insertResourceGroup(2, "ping_query", "50%", "100%", "20GB", 50, 50, null, null, null, null, null, null, null, 1L);
+        dao.insertResourceGroup(3, "config", "50%", "100%", "20GB", 50, 50, null, null, null, null, null, null, null, 1L);
         dao.insertSelector(2, "ping_user", ".*");
         dao.insertSelector(3, "admin_user", ".*");
         List<SelectorRecord> records = dao.getSelectors();
@@ -179,12 +180,12 @@ public class TestResourceGroupsDao
     {
         H2ResourceGroupsDao dao = setup("global_properties");
         dao.createResourceGroupsGlobalPropertiesTable();
-        dao.insertResourceGroupsGlobalProperties("cpu_quota_period", "1h");
+        dao.upsertResourceGroupsGlobalProperties(CPU_QUOTA_PERIOD, "1h");
         ResourceGroupGlobalProperties globalProperties = new ResourceGroupGlobalProperties(Optional.of(Duration.valueOf("1h")));
         ResourceGroupGlobalProperties records = dao.getResourceGroupGlobalProperties().get(0);
         assertEquals(globalProperties, records);
         try {
-            dao.insertResourceGroupsGlobalProperties("invalid_property", "1h");
+            dao.upsertResourceGroupsGlobalProperties("invalid_property", "1h");
         }
         catch (UnableToExecuteStatementException ex) {
             assertTrue(ex.getCause() instanceof JdbcSQLException);

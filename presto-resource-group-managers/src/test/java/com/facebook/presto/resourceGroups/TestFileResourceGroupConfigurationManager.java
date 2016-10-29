@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.resourceGroups;
 
+import com.facebook.presto.resourceGroups.systemtables.QueryQueueCache;
 import com.facebook.presto.spi.resourceGroups.ResourceGroup;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupConfigurationManager;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupId;
@@ -69,6 +70,8 @@ public class TestFileResourceGroupConfigurationManager
         assertEquals(global.getSchedulingPolicy(), WEIGHTED);
         assertEquals(global.getSchedulingWeight(), 0);
         assertEquals(global.getJmxExport(), true);
+        assertEquals(global.getQueuedTimeout(), new Duration(1, HOURS));
+        assertEquals(global.getRunningTimeout(), new Duration(1, HOURS));
 
         ResourceGroup sub = new TestingResourceGroup(new ResourceGroupId(new ResourceGroupId("global"), "sub"));
         manager.configure(sub, new SelectionContext(true, "user", Optional.empty(), 1));
@@ -78,6 +81,8 @@ public class TestFileResourceGroupConfigurationManager
         assertEquals(sub.getSchedulingPolicy(), null);
         assertEquals(sub.getSchedulingWeight(), 5);
         assertEquals(sub.getJmxExport(), false);
+        assertEquals(global.getQueuedTimeout(), new Duration(1, HOURS));
+        assertEquals(global.getRunningTimeout(), new Duration(1, HOURS));
     }
 
     @Test(expectedExceptions = IllegalArgumentException.class, expectedExceptionsMessageRegExp = "Selector refers to nonexistent group: a.b.c.X")
@@ -88,12 +93,13 @@ public class TestFileResourceGroupConfigurationManager
 
     private FileResourceGroupConfigurationManager parse(String fileName)
     {
+        QueryQueueCache queryQueueCache = new QueryQueueCache();
         FileResourceGroupConfig config = new FileResourceGroupConfig();
         config.setConfigFile(getResourceFilePath(fileName));
         return new FileResourceGroupConfigurationManager(
                 (poolId, listener) -> { },
                 config,
-                jsonCodec(ManagerSpec.class));
+                jsonCodec(ManagerSpec.class), queryQueueCache);
     }
 
     private String getResourceFilePath(String fileName)
