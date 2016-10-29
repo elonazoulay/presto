@@ -31,6 +31,8 @@ public class ResourceGroupSpecBuilder
     private final long id;
     private final ResourceGroupNameTemplate nameTemplate;
     private final String softMemoryLimit;
+    private final String hardMemoryLimit;
+    private final String maxMemoryPerQuery;
     private final int maxQueued;
     private final int maxRunning;
     private final Optional<String> schedulingPolicy;
@@ -38,6 +40,8 @@ public class ResourceGroupSpecBuilder
     private final Optional<Boolean> jmxExport;
     private final Optional<Duration> softCpuLimit;
     private final Optional<Duration> hardCpuLimit;
+    private final Optional<Duration> queuedTimeout;
+    private final Optional<Duration> runningTimeout;
     private final Optional<Long> parentId;
     private final ImmutableList.Builder<ResourceGroupSpec> subGroups = ImmutableList.builder();
 
@@ -45,6 +49,8 @@ public class ResourceGroupSpecBuilder
             long id,
             ResourceGroupNameTemplate nameTemplate,
             String softMemoryLimit,
+            String hardMemoryLimit,
+            String maxMemoryPerQuery,
             int maxQueued,
             int maxRunning,
             Optional<String> schedulingPolicy,
@@ -52,12 +58,16 @@ public class ResourceGroupSpecBuilder
             Optional<Boolean> jmxExport,
             Optional<String> softCpuLimit,
             Optional<String> hardCpuLimit,
+            Optional<String> queuedTimeout,
+            Optional<String> runningTimeout,
             Optional<Long> parentId
     )
     {
         this.id = id;
         this.nameTemplate = nameTemplate;
         this.softMemoryLimit = requireNonNull(softMemoryLimit, "softMemoryLimit is null");
+        this.hardMemoryLimit = requireNonNull(hardMemoryLimit, "hardMemoryLimit is null");
+        this.maxMemoryPerQuery = maxMemoryPerQuery;
         this.maxQueued = maxQueued;
         this.maxRunning = maxRunning;
         this.schedulingPolicy = requireNonNull(schedulingPolicy, "schedulingPolicy is null");
@@ -65,6 +75,8 @@ public class ResourceGroupSpecBuilder
         this.jmxExport = requireNonNull(jmxExport, "jmxExport is null");
         this.softCpuLimit = requireNonNull(softCpuLimit, "softCpuLimit is null").map(Duration::valueOf);
         this.hardCpuLimit = requireNonNull(hardCpuLimit, "hardCpuLimit is null").map(Duration::valueOf);
+        this.queuedTimeout = requireNonNull(queuedTimeout, "queuedTimeout is null").map(Duration::valueOf);
+        this.runningTimeout = requireNonNull(runningTimeout, "runningTimeout is null").map(Duration::valueOf);
         this.parentId = parentId;
     }
 
@@ -103,6 +115,8 @@ public class ResourceGroupSpecBuilder
         return new ResourceGroupSpec(
                 nameTemplate,
                 softMemoryLimit,
+                hardMemoryLimit,
+                maxMemoryPerQuery,
                 maxQueued,
                 maxRunning,
                 schedulingPolicy,
@@ -110,9 +124,49 @@ public class ResourceGroupSpecBuilder
                 Optional.of(subGroups.build()),
                 jmxExport,
                 softCpuLimit,
-                hardCpuLimit
+                hardCpuLimit,
+                queuedTimeout,
+                runningTimeout);
+    }
 
-        );
+    public void insert(ResourceGroupsDao dao)
+    {
+        dao.insertResourceGroup(
+                id,
+                nameTemplate.toString(),
+                softMemoryLimit,
+                hardMemoryLimit,
+                maxMemoryPerQuery,
+                maxQueued,
+                maxRunning,
+                schedulingPolicy.orElse(null),
+                schedulingWeight.orElse(null),
+                jmxExport.orElse(null),
+                softCpuLimit.map(Duration::toString).orElse(null),
+                hardCpuLimit.map(Duration::toString).orElse(null),
+                queuedTimeout.map(Duration::toString).orElse(null),
+                runningTimeout.map(Duration::toString).orElse(null),
+                parentId.orElse(null));
+    }
+
+    public void update(ResourceGroupsDao dao)
+    {
+        dao.updateResourceGroup(
+                id,
+                nameTemplate.toString(),
+                softMemoryLimit,
+                hardMemoryLimit,
+                maxMemoryPerQuery,
+                maxQueued,
+                maxRunning,
+                schedulingPolicy.orElse(null),
+                schedulingWeight.orElse(null),
+                jmxExport.orElse(null),
+                softCpuLimit.map(Duration::toString).orElse(null),
+                hardCpuLimit.map(Duration::toString).orElse(null),
+                queuedTimeout.map(Duration::toString).orElse(null),
+                runningTimeout.map(Duration::toString).orElse(null),
+                parentId.orElse(null));
     }
 
     public static class Mapper
@@ -125,6 +179,7 @@ public class ResourceGroupSpecBuilder
             long id = resultSet.getLong("resource_group_id");
             ResourceGroupNameTemplate nameTemplate = new ResourceGroupNameTemplate(resultSet.getString("name"));
             String softMemoryLimit = resultSet.getString("soft_memory_limit");
+            String hardMemoryLimit = resultSet.getString("hard_memory_limit");
             int maxQueued = resultSet.getInt("max_queued");
             int maxRunning = resultSet.getInt("max_running");
             Optional<String> schedulingPolicy = Optional.ofNullable(resultSet.getString("scheduling_policy"));
@@ -142,10 +197,15 @@ public class ResourceGroupSpecBuilder
             if (resultSet.wasNull()) {
                 parentId = Optional.empty();
             }
+            Optional<String> queuedTimeout = Optional.ofNullable(resultSet.getString("queued_timeout"));
+            Optional<String> runningTimeout = Optional.ofNullable(resultSet.getString("running_timeout"));
+            String maxMemoryPerQuery = resultSet.getString("max_memory_per_query");
             return new ResourceGroupSpecBuilder(
                     id,
                     nameTemplate,
                     softMemoryLimit,
+                    hardMemoryLimit,
+                    maxMemoryPerQuery,
                     maxQueued,
                     maxRunning,
                     schedulingPolicy,
@@ -153,8 +213,9 @@ public class ResourceGroupSpecBuilder
                     jmxExport,
                     softCpuLimit,
                     hardCpuLimit,
-                    parentId
-            );
+                    queuedTimeout,
+                    runningTimeout,
+                    parentId);
         }
     }
 }

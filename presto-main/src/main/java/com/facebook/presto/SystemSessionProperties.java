@@ -32,7 +32,6 @@ import static com.facebook.presto.spi.session.PropertyMetadata.booleanSessionPro
 import static com.facebook.presto.spi.session.PropertyMetadata.integerSessionProperty;
 import static com.facebook.presto.spi.session.PropertyMetadata.stringSessionProperty;
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
-import static com.facebook.presto.spi.type.BooleanType.BOOLEAN;
 import static com.facebook.presto.spi.type.VarcharType.VARCHAR;
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.lang.String.format;
@@ -64,6 +63,7 @@ public final class SystemSessionProperties
     public static final String OPTIMIZE_METADATA_QUERIES = "optimize_metadata_queries";
     public static final String QUERY_PRIORITY = "query_priority";
     public static final String SPILL_ENABLED = "spill_enabled";
+    public static final String GLOBALLY_DISABLE_SPILL = "globally_disable_spill";
     public static final String OPERATOR_MEMORY_LIMIT_BEFORE_SPILL = "operator_memory_limit_before_spill";
     public static final String OPTIMIZE_DISTINCT_AGGREGATIONS = "optimize_mixed_distinct_aggregations";
     public static final String LEGACY_ORDER_BY = "legacy_order_by";
@@ -247,23 +247,16 @@ public final class SystemSessionProperties
                         "Experimental: Use a colocated join when possible",
                         featuresConfig.isColocatedJoinsEnabled(),
                         false),
-                new PropertyMetadata<>(
+                booleanSessionProperty(
                         SPILL_ENABLED,
                         "Experimental: Enable spilling",
-                        BOOLEAN,
-                        Boolean.class,
                         featuresConfig.isSpillEnabled(),
-                        false,
-                        value -> {
-                            boolean spillEnabled = (Boolean) value;
-                            if (spillEnabled && featuresConfig.getSpillerSpillPaths().isEmpty()) {
-                                throw new PrestoException(
-                                        StandardErrorCode.INVALID_SESSION_PROPERTY,
-                                        format("%s cannot be set to true; no spill paths configured", SPILL_ENABLED));
-                            }
-                            return spillEnabled;
-                        },
-                        value -> value),
+                        featuresConfig.isSpillGloballyDisabled()),
+                booleanSessionProperty(
+                        GLOBALLY_DISABLE_SPILL,
+                        "Experimental: Globally disable spill",
+                        featuresConfig.isSpillGloballyDisabled(),
+                        true),
                 new PropertyMetadata<>(
                         OPERATOR_MEMORY_LIMIT_BEFORE_SPILL,
                         "Experimental: Operator memory limit before spill",
@@ -443,7 +436,7 @@ public final class SystemSessionProperties
 
     public static boolean isSpillEnabled(Session session)
     {
-        return session.getSystemProperty(SPILL_ENABLED, Boolean.class);
+        return session.getSystemProperty(SPILL_ENABLED, Boolean.class) && !session.getSystemProperty(GLOBALLY_DISABLE_SPILL, Boolean.class);
     }
 
     public static DataSize getOperatorMemoryLimitBeforeSpill(Session session)

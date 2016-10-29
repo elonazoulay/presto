@@ -416,7 +416,7 @@ public class QueryStateMachine
                 outputPositions,
                 operatorStatsSummary.build());
 
-        return new QueryInfo(queryId,
+        QueryInfo queryInfo =  new QueryInfo(queryId,
                 session.toSessionRepresentation(),
                 state,
                 memoryPool.get().getId(),
@@ -439,6 +439,10 @@ public class QueryStateMachine
                 output.get(),
                 completeInfo,
                 getResourceGroup().map(ResourceGroupId::toString));
+        if (queryInfo.isFinalQueryInfo()) {
+            finalQueryInfo.compareAndSet(Optional.empty(), Optional.of(queryInfo));
+        }
+        return queryInfo;
     }
 
     public VersionedMemoryPoolId getMemoryPool()
@@ -736,16 +740,7 @@ public class QueryStateMachine
         return finalQueryInfo.get();
     }
 
-    public QueryInfo updateQueryInfo(Optional<StageInfo> stageInfo)
-    {
-        QueryInfo queryInfo = getQueryInfo(stageInfo);
-        if (queryInfo.isFinalQueryInfo()) {
-            finalQueryInfo.compareAndSet(Optional.empty(), Optional.of(queryInfo));
-        }
-        return queryInfo;
-    }
-
-    public void pruneQueryInfo()
+    public void pruneQueryInfo(boolean retainPlan)
     {
         Optional<QueryInfo> finalInfo = finalQueryInfo.get();
         if (!finalInfo.isPresent() || !finalInfo.get().getOutputStage().isPresent()) {
@@ -758,7 +753,7 @@ public class QueryStateMachine
                 outputStage.getStageId(),
                 outputStage.getState(),
                 outputStage.getSelf(),
-                null, // Remove the plan
+                retainPlan ? outputStage.getPlan() : null, // Remove the plan
                 outputStage.getTypes(),
                 outputStage.getStageStats(),
                 ImmutableList.of(), // Remove the tasks

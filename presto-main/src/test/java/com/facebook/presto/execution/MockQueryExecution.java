@@ -206,7 +206,7 @@ public class MockQueryExecution
     }
 
     @Override
-    public void pruneInfo()
+    public void pruneInfo(boolean retainPlan)
     {
     }
 
