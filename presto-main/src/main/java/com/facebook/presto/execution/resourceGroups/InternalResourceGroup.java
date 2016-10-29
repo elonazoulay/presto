@@ -15,11 +15,13 @@ package com.facebook.presto.execution.resourceGroups;
 
 import com.facebook.presto.execution.QueryExecution;
 import com.facebook.presto.execution.QueryState;
+import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.resourceGroups.ResourceGroup;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupId;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupInfo;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupState;
 import com.facebook.presto.spi.resourceGroups.SchedulingPolicy;
+import com.google.common.collect.ImmutableList;
 import io.airlift.units.DataSize;
 import io.airlift.units.Duration;
 import org.weakref.jmx.Managed;
@@ -30,6 +32,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -40,6 +43,7 @@ import java.util.function.BiConsumer;
 
 import static com.facebook.presto.SystemSessionProperties.getQueryPriority;
 import static com.facebook.presto.spi.ErrorType.USER_ERROR;
+import static com.facebook.presto.spi.StandardErrorCode.EXCEEDED_TIME_LIMIT;
 import static com.facebook.presto.spi.resourceGroups.ResourceGroupState.CAN_QUEUE;
 import static com.facebook.presto.spi.resourceGroups.ResourceGroupState.CAN_RUN;
 import static com.facebook.presto.spi.resourceGroups.ResourceGroupState.FULL;
@@ -110,9 +114,15 @@ public class InternalResourceGroup
     @GuardedBy("root")
     private final Set<QueryExecution> runningQueries = new HashSet<>();
     @GuardedBy("root")
+    private LinkedHashSet<QueryExecution> activeQueries = new LinkedHashSet<>();
+    @GuardedBy("root")
     private SchedulingPolicy schedulingPolicy = FAIR;
     @GuardedBy("root")
     private boolean jmxExport;
+    @GuardedBy("root")
+    private Duration queuedTimeLimit = new Duration(Long.MAX_VALUE, MILLISECONDS);
+    @GuardedBy("root")
+    private Duration runningTimeLimit = new Duration(Long.MAX_VALUE, MILLISECONDS);;
 
     protected InternalResourceGroup(Optional<InternalResourceGroup> parent, String name, BiConsumer<InternalResourceGroup, Boolean> jmxExportListener, Executor executor)
     {
@@ -430,6 +440,38 @@ public class InternalResourceGroup
         jmxExportListener.accept(this, export);
     }
 
+    @Override
+    public Duration getQueuedTimeLimit()
+    {
+        synchronized (root) {
+            return queuedTimeLimit;
+        }
+    }
+
+    @Override
+    public void setQueuedTimeLimit(Duration queuedTimeout)
+    {
+        synchronized (root) {
+            this.queuedTimeLimit = queuedTimeout;
+        }
+    }
+
+    @Override
+    public Duration getRunningTimeLimit()
+    {
+        synchronized (root) {
+            return runningTimeLimit;
+        }
+    }
+
+    @Override
+    public void setRunningTimeLimit(Duration runningTimeout)
+    {
+        synchronized (root) {
+            this.runningTimeLimit = runningTimeout;
+        }
+    }
+
     public InternalResourceGroup getOrCreateSubGroup(String name)
     {
         requireNonNull(name, "name is null");
@@ -469,6 +511,7 @@ public class InternalResourceGroup
                 query.fail(new QueryQueueFullException(id));
                 return;
             }
+            activeQueries.add(query);
             if (canRun) {
                 startInBackground(query);
             }
@@ -554,6 +597,7 @@ public class InternalResourceGroup
                     group = group.parent.orElse(null);
                 }
             }
+            activeQueries.remove(query);
             if (runningQueries.contains(query)) {
                 runningQueries.remove(query);
                 InternalResourceGroup group = this;
@@ -653,6 +697,27 @@ public class InternalResourceGroup
                 eligibleSubGroups.addOrUpdate(subGroup, getSubGroupSchedulingPriority(schedulingPolicy, subGroup));
             }
             return true;
+        }
+    }
+
+    protected void enforceTimeLimits()
+    {
+        checkState(Thread.holdsLock(root), "Must hold lock to enforce time limits");
+        synchronized (root) {
+            for (InternalResourceGroup group : subGroups.values()) {
+                group.enforceTimeLimits();
+            }
+            // Copy active queries to prevent ConcurrentModificationException
+            for (QueryExecution query : ImmutableList.copyOf(activeQueries)) {
+                Optional<Duration> runningTime = Optional.ofNullable(query.getQueryInfo().getQueryStats().getExecutionTime());
+                Optional<Duration> elapsedTime = Optional.ofNullable(query.getQueryInfo().getQueryStats().getElapsedTime());
+                if (runningQueries.contains(query) && runningTime.isPresent() && runningTime.get().compareTo(runningTimeLimit) > 0) {
+                    query.fail(new PrestoException(EXCEEDED_TIME_LIMIT, "query exceeded resource group runtime limit"));
+                }
+                else if (queuedQueries.contains(query) && elapsedTime.isPresent() && elapsedTime.get().compareTo(queuedTimeLimit) > 0) {
+                    query.fail(new PrestoException(EXCEEDED_TIME_LIMIT, "query exceeded resource group queued time limit"));
+                }
+            }
         }
     }
 
@@ -767,6 +832,7 @@ public class InternalResourceGroup
         public synchronized void processQueuedQueries()
         {
             internalRefreshStats();
+            enforceTimeLimits();
             while (internalStartNext()) {
                 // start all the queries we can
             }

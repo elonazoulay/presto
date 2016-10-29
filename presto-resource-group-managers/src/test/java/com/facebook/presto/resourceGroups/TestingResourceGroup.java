@@ -34,6 +34,8 @@ public class TestingResourceGroup
     private int schedulingWeight;
     private SchedulingPolicy policy;
     private boolean jmxExport;
+    private Duration queuedTimeout;
+    private Duration runningTimeout;
 
     public TestingResourceGroup(ResourceGroupId id)
     {
@@ -152,5 +154,28 @@ public class TestingResourceGroup
     public void setJmxExport(boolean export)
     {
         jmxExport = export;
+    }
+    @Override
+    public Duration getQueuedTimeLimit()
+    {
+        return queuedTimeout;
+    }
+
+    @Override
+    public void setQueuedTimeLimit(Duration queuedTimeout)
+    {
+        this.queuedTimeout = queuedTimeout;
+    }
+
+    @Override
+    public Duration getRunningTimeLimit()
+    {
+        return runningTimeout;
+    }
+
+    @Override
+    public void setRunningTimeLimit(Duration runningTimeout)
+    {
+        this.runningTimeout = runningTimeout;
     }
 }
