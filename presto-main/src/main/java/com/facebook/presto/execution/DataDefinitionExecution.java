@@ -179,7 +179,7 @@ public class DataDefinitionExecution<T extends Statement>
     }
 
     @Override
-    public void pruneInfo()
+    public void pruneInfo(boolean retainPlan)
     {
         // no-op
     }
@@ -197,7 +197,7 @@ public class DataDefinitionExecution<T extends Statement>
         if (finalQueryInfo.isPresent()) {
             return finalQueryInfo.get();
         }
-        return stateMachine.updateQueryInfo(Optional.empty());
+        return stateMachine.getQueryInfo(Optional.empty());
     }
 
     @Override

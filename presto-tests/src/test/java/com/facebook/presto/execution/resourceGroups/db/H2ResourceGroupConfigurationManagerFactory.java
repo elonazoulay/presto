@@ -13,7 +13,10 @@
  */
 package com.facebook.presto.execution.resourceGroups.db;
 
+import com.facebook.presto.resourceGroups.db.ConfigurationNotifier;
 import com.facebook.presto.resourceGroups.db.DbResourceGroupConfigurationManager;
+import com.facebook.presto.resourceGroups.systemtables.QueryQueueCache;
+import com.facebook.presto.resourceGroups.systemtables.ResourceGroupInfoHolder;
 import com.facebook.presto.spi.classloader.ThreadContextClassLoader;
 import com.facebook.presto.spi.memory.ClusterMemoryPoolManager;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupConfigurationManager;
@@ -32,10 +35,16 @@ public class H2ResourceGroupConfigurationManagerFactory
         implements ResourceGroupConfigurationManagerFactory
 {
     private final ClassLoader classLoader;
+    private final QueryQueueCache queryQueueCache;
+    private final ResourceGroupInfoHolder resourceGroupInfoHolder;
+    private final ConfigurationNotifier configurationNotifier;
 
-    public H2ResourceGroupConfigurationManagerFactory(ClassLoader classLoader)
+    public H2ResourceGroupConfigurationManagerFactory(ClassLoader classLoader, QueryQueueCache queryQueueCache, ResourceGroupInfoHolder resourceGroupInfoHolder, ConfigurationNotifier configurationNotifier)
     {
         this.classLoader = requireNonNull(classLoader, "classLoader is null");
+        this.queryQueueCache = requireNonNull(queryQueueCache, "queryQueueCache is null");
+        this.resourceGroupInfoHolder = requireNonNull(resourceGroupInfoHolder, "resourceGroupInfoHolder is null");
+        this.configurationNotifier = requireNonNull(configurationNotifier, "configurationNotifier is null");
     }
 
     @Override
@@ -51,7 +60,10 @@ public class H2ResourceGroupConfigurationManagerFactory
             Bootstrap app = new Bootstrap(
                     new JsonModule(),
                     new H2ResourceGroupsModule(),
-                    binder -> binder.bind(ClusterMemoryPoolManager.class).toInstance(context.getMemoryPoolManager())
+                    binder -> binder.bind(ClusterMemoryPoolManager.class).toInstance(context.getMemoryPoolManager()),
+                    binder -> binder.bind(QueryQueueCache.class).toInstance(queryQueueCache),
+                    binder -> binder.bind(ResourceGroupInfoHolder.class).toInstance(resourceGroupInfoHolder),
+                    binder -> binder.bind(ConfigurationNotifier.class).toInstance(configurationNotifier)
             );
 
             Injector injector = app
