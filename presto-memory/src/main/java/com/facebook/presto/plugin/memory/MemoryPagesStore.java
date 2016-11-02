@@ -16,7 +16,9 @@ package com.facebook.presto.plugin.memory;
 import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.block.Block;
 import com.google.common.collect.ImmutableList;
+import io.airlift.units.DataSize;
 
+import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 import java.util.ArrayList;
@@ -24,30 +26,50 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkState;
+import static java.lang.String.format;
 
 @ThreadSafe
 public class MemoryPagesStore
 {
+    private final Optional<Long> maxBytesPerNode;
+    @GuardedBy("this")
+    private long currentBytes = 0;
+
+    public MemoryPagesStore(Optional<DataSize> maxDataSizePerNode)
+    {
+        this.maxBytesPerNode = maxDataSizePerNode.map(dataSize -> dataSize.toBytes());
+    }
+
     private final Map<Long, List<Page>> pages = new HashMap<>();
 
     public synchronized void add(Long tableId, Page page)
     {
+        long newSize = currentBytes + page.getRetainedSizeInBytes();
+        if (maxBytesPerNode.isPresent()) {
+            checkState(maxBytesPerNode.get() > newSize,
+                    format("newSize %d is greater than maxBytesPerNode %d", newSize, maxBytesPerNode.get()));
+        }
+        currentBytes = newSize;
+        pages.computeIfAbsent(tableId, k -> new ArrayList<>()).add(page);
+        /*
         if (!pages.containsKey(tableId)) {
             pages.put(tableId, new ArrayList<>());
         }
-
         List<Page> tablePages = pages.get(tableId);
         tablePages.add(page);
+        */
     }
 
     public synchronized List<Page> getPages(Long tableId, int partNumber, int totalParts, List<Integer> columnIndexes)
     {
-        checkState(pages.containsKey(tableId));
-
         List<Page> tablePages = pages.get(tableId);
+        if (tablePages == null) {
+            return ImmutableList.of();
+        }
         ImmutableList.Builder<Page> partitionedPages = ImmutableList.builder();
 
         for (int i = partNumber; i < tablePages.size(); i += totalParts) {
@@ -75,10 +97,11 @@ public class MemoryPagesStore
             return;
         }
         long latestTableId  = Collections.max(activeTableIds);
-
         for (Long tableId : ImmutableList.copyOf(pages.keySet())) {
             if (tableId < latestTableId && !activeTableIds.contains(tableId)) {
-                pages.remove(tableId);
+                for (Page removedPage : pages.remove(tableId)) {
+                    currentBytes -= removedPage.getRetainedSizeInBytes();
+                }
             }
         }
     }

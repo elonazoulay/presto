@@ -15,30 +15,28 @@
 package com.facebook.presto.plugin.memory;
 
 import com.facebook.presto.spi.ConnectorHandleResolver;
-import com.facebook.presto.spi.NodeManager;
 import com.facebook.presto.spi.connector.Connector;
 import com.facebook.presto.spi.connector.ConnectorContext;
 import com.facebook.presto.spi.connector.ConnectorFactory;
+import io.airlift.units.DataSize;
 
 import java.util.Map;
+import java.util.Optional;
 
 import static com.google.common.base.MoreObjects.firstNonNull;
-import static java.util.Objects.requireNonNull;
 
 public class MemoryConnectorFactory
         implements ConnectorFactory
 {
     private final int defaultSplitsPerNode;
-    private final NodeManager nodeManager;
 
-    public MemoryConnectorFactory(NodeManager nodeManager)
+    public MemoryConnectorFactory()
     {
-        this(nodeManager, Runtime.getRuntime().availableProcessors());
+        this(Runtime.getRuntime().availableProcessors());
     }
 
-    public MemoryConnectorFactory(NodeManager nodeManager, int defaultSplitsPerNode)
+    public MemoryConnectorFactory(int defaultSplitsPerNode)
     {
-        this.nodeManager = requireNonNull(nodeManager, "nodeManager is null");
         this.defaultSplitsPerNode = defaultSplitsPerNode;
     }
 
@@ -58,11 +56,12 @@ public class MemoryConnectorFactory
     public Connector create(String connectorId, Map<String, String> requiredConfig, ConnectorContext context)
     {
         int splitsPerNode = getSplitsPerNode(requiredConfig);
-        MemoryPagesStore pagesStore = new MemoryPagesStore();
+        MemoryPagesStore pagesStore = new MemoryPagesStore(
+                Optional.ofNullable(requiredConfig.get("memory.max-data-per-node")).map(DataSize::valueOf));
 
         return new MemoryConnector(
                 new MemoryMetadata(connectorId),
-                new MemorySplitManager(connectorId, nodeManager, splitsPerNode),
+                new MemorySplitManager(context.getNodeManager(), splitsPerNode),
                 new MemoryPageSourceProvider(pagesStore),
                 new MemoryPageSinkProvider(pagesStore));
     }
@@ -70,10 +69,10 @@ public class MemoryConnectorFactory
     private int getSplitsPerNode(Map<String, String> properties)
     {
         try {
-            return Integer.parseInt(firstNonNull(properties.get("in-memory.splits-per-node"), String.valueOf(defaultSplitsPerNode)));
+            return Integer.parseInt(firstNonNull(properties.get("memory.splits-per-node"), String.valueOf(defaultSplitsPerNode)));
         }
         catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Invalid property in-memory.splits-per-node");
+            throw new IllegalArgumentException("Invalid property memory.splits-per-node");
         }
     }
 }
