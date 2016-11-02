@@ -29,6 +29,7 @@ import com.facebook.presto.sql.tree.Explain;
 import com.facebook.presto.sql.tree.Expression;
 import com.facebook.presto.sql.tree.Statement;
 import com.facebook.presto.transaction.TransactionManager;
+import com.google.common.collect.ImmutableList;
 import io.airlift.concurrent.ThreadPoolExecutorMBean;
 import io.airlift.log.Logger;
 import io.airlift.units.Duration;
@@ -48,6 +49,7 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
@@ -57,6 +59,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import static com.facebook.presto.execution.ParameterExtractor.getParameterCount;
 import static com.facebook.presto.execution.QueryState.RUNNING;
@@ -319,7 +322,13 @@ public class SqlQueryManager
             }
             finally {
                 // execution MUST be added to the expiration queue or there will be a leak
-                expirationQueue.add(execution);
+                try {
+                    expirationQueue.add(execution);
+                    log.info("BUG #6747: Added query %s to the expiration queue", execution.getQueryId());
+                }
+                catch (Exception ex) {
+                    log.info("BUG #6747: Failed to add query %s to the expiration queue: %s", execution.getQueryId(), ex);
+                }
             }
 
             return queryInfo;
@@ -336,7 +345,13 @@ public class SqlQueryManager
                 }
                 finally {
                     // execution MUST be added to the expiration queue or there will be a leak
-                    expirationQueue.add(queryExecution);
+                    try {
+                        expirationQueue.add(queryExecution);
+                        log.info("BUG #6747: Added query %s to the expiration queue", queryExecution.getQueryId());
+                    }
+                    catch (Exception ex) {
+                        log.info("BUG #6747: Failed to add query %s to the expiration queue: %s", queryExecution.getQueryId(), ex);
+                    }
                 }
         });
 
@@ -472,6 +487,15 @@ public class SqlQueryManager
     private void removeExpiredQueries()
     {
         DateTime timeHorizon = DateTime.now().minus(minQueryExpireAge.toMillis());
+        if (queries.size() > maxQueryHistory && expirationQueue.size() == maxQueryHistory) {
+            log.info("BUG #6747: timeHorizon = %s, expiration queue size = %s", timeHorizon, expirationQueue.size());
+            Set<QueryId> expired = expirationQueue.stream().map(queryExecution -> queryExecution.getQueryId()).collect(Collectors.toSet());
+            log.info("BUG #6747 orphanedQueryIds: %s",
+                    queries.values().stream()
+                            .filter(queryExecution ->  queryExecution.getQueryInfo().getState().isDone() && !expired.contains(queryExecution.getQueryId()))
+                            .map(queryExecution -> queryExecution.getQueryId())
+                            .collect(Collectors.toList()));
+        }
 
         // we're willing to keep queries beyond timeHorizon as long as we have fewer than maxQueryHistory
         while (expirationQueue.size() > maxQueryHistory) {
@@ -480,6 +504,9 @@ public class SqlQueryManager
             // expirationQueue is FIFO based on query end time. Stop when we see the
             // first query that's too young to expire
             if (queryInfo.getQueryStats().getEndTime().isAfter(timeHorizon)) {
+                log.info("BUG #6747: %s", ImmutableList.copyOf(expirationQueue).stream()
+                        .map(queryExecution -> format("%s : %s", queryExecution.getQueryId(), queryExecution.getQueryInfo().getQueryStats().getEndTime()))
+                        .collect(Collectors.toList()));
                 return;
             }
 
@@ -487,7 +514,7 @@ public class SqlQueryManager
             // around for a while in case clients come back asking for status
             QueryId queryId = queryInfo.getQueryId();
 
-            log.debug("Remove query %s", queryId);
+            log.info("BUG #6747: Remove query %s", queryId);
             queries.remove(queryId);
             expirationQueue.remove();
         }

@@ -642,6 +642,9 @@ public class QueryStateMachine
             if (finalQueryInfo.isPresent() && done.compareAndSet(false, true)) {
                 stateChangeListener.stateChanged(finalQueryInfo.get());
             }
+            else {
+                log.info("BUG #6747: State change listener failed to fire for queryId '%s' with done state '%s' and final query info '%s'. Danger!", queryId, done, finalQueryInfo);
+            }
         };
         finalQueryInfo.addStateChangeListener(fireOnceStateChangeListener);
         fireOnceStateChangeListener.stateChanged(finalQueryInfo.get());
