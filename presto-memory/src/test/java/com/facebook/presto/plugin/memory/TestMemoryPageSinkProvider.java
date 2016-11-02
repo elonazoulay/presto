@@ -26,6 +26,8 @@ import com.google.common.collect.ImmutableSet;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.util.Optional;
+
 import static java.lang.String.format;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
@@ -40,7 +42,7 @@ public class TestMemoryPageSinkProvider
     @BeforeMethod
     public void setUp()
     {
-        pagesStore = new MemoryPagesStore();
+        pagesStore = new MemoryPagesStore(Optional.empty());
         pageSinkProvider = new MemoryPageSinkProvider(pagesStore);
     }
 
@@ -74,7 +76,7 @@ public class TestMemoryPageSinkProvider
                 MemoryTransactionHandle.INSTANCE,
                 SESSION,
                 createMemoryInsertTableHandle(tableId, activeTableIds));
-        pageSink.appendPage(createEmptyPage(), null);
+        pageSink.appendPage(createEmptyPage());
     }
 
     private void createTable(long tableId, Long... activeTableIds)
@@ -83,7 +85,7 @@ public class TestMemoryPageSinkProvider
                 MemoryTransactionHandle.INSTANCE,
                 SESSION,
                 createMemoryOutputTableHandle(tableId, activeTableIds));
-        pageSink.appendPage(createEmptyPage(), null);
+        pageSink.appendPage(createEmptyPage());
     }
 
     private ConnectorOutputTableHandle createMemoryOutputTableHandle(long tableId, Long... activeTableIds)

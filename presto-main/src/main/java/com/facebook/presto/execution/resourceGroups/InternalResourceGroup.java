@@ -632,7 +632,7 @@ public class InternalResourceGroup
             }
             LinkedList<StackFrame> stack = new LinkedList<>();
             stack.push(new StackFrame(queueInfoEntry.get(), 0));
-            int position = 0;
+            int position = 1;
             while (!stack.isEmpty()) {
                 StackFrame frame = stack.poll();
                 QueueInfo entry = frame.queueInfo;
@@ -648,7 +648,7 @@ public class InternalResourceGroup
                         // Is a root and leaf group
                         Optional<Map.Entry<ResourceGroupId, QueryId>> queryInfoEntry = entry.getNextQuery();
                         if (queryInfoEntry.isPresent()) {
-                            QueryQueueInfo.QueryEntry queryEntry = new QueryQueueInfo.QueryEntry(queryInfoEntry.get().getKey(), queryInfoEntry.get().getValue(), position, true);
+                            QueryQueueInfo.QueryEntry queryEntry = new QueryQueueInfo.QueryEntry(queryInfoEntry.get().getKey(), queryInfoEntry.get().getValue(), position++, true);
                             infoBuilder.add(queryEntry);
                         }
                     }
@@ -664,7 +664,7 @@ public class InternalResourceGroup
                         // Is a leaf group
                         Optional<Map.Entry<ResourceGroupId, QueryId>> queryInfoEntry = entry.getNextQuery();
                         if (queryInfoEntry.isPresent()) {
-                            QueryQueueInfo.QueryEntry queryEntry = new QueryQueueInfo.QueryEntry(queryInfoEntry.get().getKey(), queryInfoEntry.get().getValue(), position, true);
+                            QueryQueueInfo.QueryEntry queryEntry = new QueryQueueInfo.QueryEntry(queryInfoEntry.get().getKey(), queryInfoEntry.get().getValue(), position++, true);
                             infoBuilder.add(queryEntry);
                         }
                         if (!entry.isEmpty()) {

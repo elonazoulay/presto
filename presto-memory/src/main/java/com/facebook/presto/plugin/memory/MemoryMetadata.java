@@ -29,6 +29,7 @@ import com.facebook.presto.spi.Constraint;
 import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.SchemaTablePrefix;
 import com.facebook.presto.spi.connector.ConnectorMetadata;
+import com.facebook.presto.spi.connector.ConnectorOutputMetadata;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -160,7 +161,7 @@ public class MemoryMetadata
     public ConnectorOutputTableHandle beginCreateTable(ConnectorSession session, ConnectorTableMetadata tableMetadata, Optional<ConnectorNewTableLayout> layout)
     {
         long nextId = nextTableId.getAndIncrement();
-        Set<Long> activeTableIds = new HashSet(tableIds.values());
+        Set<Long> activeTableIds = new HashSet<>(tableIds.values());
         activeTableIds.add(nextId);
         return new MemoryOutputTableHandle(new MemoryTableHandle(
                 connectorId,
@@ -170,12 +171,13 @@ public class MemoryMetadata
     }
 
     @Override
-    public void finishCreateTable(ConnectorSession session, ConnectorOutputTableHandle tableHandle, Collection<Slice> fragments)
+    public Optional<ConnectorOutputMetadata> finishCreateTable(ConnectorSession session, ConnectorOutputTableHandle tableHandle, Collection<Slice> fragments)
     {
         MemoryOutputTableHandle memoryOutputTableHandle = checkType(tableHandle, MemoryOutputTableHandle.class, "tableHandle");
         MemoryTableHandle table = memoryOutputTableHandle.getTable();
         tableIds.put(table.getTableName(), table.getTableId());
         tables.put(table.getTableId(), table);
+        return Optional.empty();
     }
 
     @Override
@@ -186,7 +188,10 @@ public class MemoryMetadata
     }
 
     @Override
-    public void finishInsert(ConnectorSession session, ConnectorInsertTableHandle insertHandle, Collection<Slice> fragments) {}
+    public Optional<ConnectorOutputMetadata> finishInsert(ConnectorSession session, ConnectorInsertTableHandle insertHandle, Collection<Slice> fragments)
+    {
+        return Optional.empty();
+    }
 
     @Override
     public List<ConnectorTableLayoutResult> getTableLayouts(
