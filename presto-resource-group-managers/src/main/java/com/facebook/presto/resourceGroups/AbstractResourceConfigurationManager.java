@@ -45,6 +45,8 @@ public abstract class AbstractResourceConfigurationManager
     @GuardedBy("generalPoolMemoryFraction")
     private final Map<ResourceGroup, Double> generalPoolMemoryFraction = new HashMap<>();
     @GuardedBy("generalPoolMemoryFraction")
+    private final Map<ResourceGroup, Double> generalPoolMemoryFractionHard = new HashMap<>();
+    @GuardedBy("generalPoolMemoryFraction")
     private long generalPoolBytes;
 
     protected abstract Optional<Duration> getCpuQuotaPeriodMillis();
@@ -103,6 +105,10 @@ public abstract class AbstractResourceConfigurationManager
                     double bytes = poolInfo.getMaxBytes() * entry.getValue();
                     entry.getKey().setSoftMemoryLimit(new DataSize(bytes, BYTE));
                 }
+                for (Map.Entry<ResourceGroup, Double> entry : generalPoolMemoryFractionHard.entrySet()) {
+                    double bytes = poolInfo.getMaxBytes() * entry.getValue();
+                    entry.getKey().setHardMemoryLimit(new DataSize(bytes, BYTE));
+                }
                 generalPoolBytes = poolInfo.getMaxBytes();
             }
         });
@@ -155,6 +161,16 @@ public abstract class AbstractResourceConfigurationManager
                 double fraction = match.getSoftMemoryLimitFraction().get();
                 generalPoolMemoryFraction.put(group, fraction);
                 group.setSoftMemoryLimit(new DataSize(generalPoolBytes * fraction, BYTE));
+            }
+        }
+        if (match.getHardMemoryLimit().isPresent()) {
+            group.setHardMemoryLimit(match.getHardMemoryLimit().get());
+        }
+        else {
+            synchronized (generalPoolMemoryFraction) {
+                double fraction = match.getHardMemoryLimitFraction().get();
+                generalPoolMemoryFractionHard.put(group, fraction);
+                group.setHardMemoryLimit(new DataSize(generalPoolBytes * fraction, BYTE));
             }
         }
         group.setMaxQueuedQueries(match.getMaxQueued());
