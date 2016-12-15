@@ -111,6 +111,7 @@ import com.facebook.presto.operator.scalar.RepeatFunction;
 import com.facebook.presto.operator.scalar.ScalarFunctionImplementation;
 import com.facebook.presto.operator.scalar.SequenceFunction;
 import com.facebook.presto.operator.scalar.SplitToMapFunction;
+import com.facebook.presto.operator.scalar.SessionFunctions;
 import com.facebook.presto.operator.scalar.StringFunctions;
 import com.facebook.presto.operator.scalar.TryFunction;
 import com.facebook.presto.operator.scalar.TypeOfFunction;
@@ -444,6 +445,7 @@ public class FunctionRegistry
                 .aggregates(BitwiseAndAggregation.class)
                 .scalar(RepeatFunction.class)
                 .scalars(SequenceFunction.class)
+                .scalars(SessionFunctions.class)
                 .scalars(StringFunctions.class)
                 .scalars(WordStemFunction.class)
                 .scalars(SplitToMapFunction.class)
