@@ -401,9 +401,9 @@ public final class SqlQueryExecution
     }
 
     @Override
-    public void pruneInfo()
+    public void pruneInfo(boolean retainPlan)
     {
-        stateMachine.pruneQueryInfo();
+        stateMachine.pruneQueryInfo(retainPlan);
     }
 
     @Override

@@ -691,7 +691,7 @@ public class QueryStateMachine
         return finalQueryInfo.get();
     }
 
-    public void pruneQueryInfo()
+    public void pruneQueryInfo(boolean retainPlan)
     {
         Optional<QueryInfo> finalInfo = finalQueryInfo.get();
         if (!finalInfo.isPresent() || !finalInfo.get().getOutputStage().isPresent()) {
@@ -704,7 +704,7 @@ public class QueryStateMachine
                 outputStage.getStageId(),
                 outputStage.getState(),
                 outputStage.getSelf(),
-                null, // Remove the plan
+                retainPlan ? outputStage.getPlan() : null, // Remove the plan
                 outputStage.getTypes(),
                 outputStage.getStageStats(),
                 ImmutableList.of(), // Remove the tasks

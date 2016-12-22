@@ -169,7 +169,7 @@ public class DataDefinitionExecution<T extends Statement>
     }
 
     @Override
-    public void pruneInfo()
+    public void pruneInfo(boolean retainPlan)
     {
         // no-op
     }
