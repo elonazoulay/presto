@@ -175,7 +175,9 @@ public class SqlQueryManager
                 }
 
                 try {
-                    pruneExpiredQueries();
+                    if (!config.getPruneExpired()) {
+                        pruneExpiredQueries();
+                    }
                 }
                 catch (Throwable e) {
                     log.warn(e, "Error pruning expired queries");

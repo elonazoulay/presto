@@ -98,6 +98,7 @@ public final class SqlQueryExecution
     private final ExecutionPolicy executionPolicy;
     private final List<Expression> parameters;
     private final SplitSchedulerStats schedulerStats;
+    private final AtomicReference<Optional<StageInfo>> finalStageInfo = new AtomicReference<>(Optional.empty());
 
     public SqlQueryExecution(QueryId queryId,
             String query,
@@ -438,12 +439,11 @@ public final class SqlQueryExecution
 
     private QueryInfo buildQueryInfo(SqlQueryScheduler scheduler)
     {
-        Optional<StageInfo> stageInfo = Optional.empty();
         if (scheduler != null) {
-            stageInfo = Optional.ofNullable(scheduler.getStageInfo());
+            finalStageInfo.set(Optional.ofNullable(scheduler.getStageInfo()));
         }
 
-        QueryInfo queryInfo = stateMachine.updateQueryInfo(stageInfo);
+        QueryInfo queryInfo = stateMachine.updateQueryInfo(finalStageInfo.get());
         if (queryInfo.isFinalQueryInfo()) {
             // capture the final query state and drop reference to the scheduler
             queryScheduler.set(null);

@@ -40,6 +40,7 @@ public class QueryManagerConfig
     private int initialHashPartitions = 100;
     private Duration minQueryExpireAge = new Duration(15, TimeUnit.MINUTES);
     private int maxQueryHistory = 100;
+    private boolean pruneExpired = true;
     private Duration clientTimeout = new Duration(5, TimeUnit.MINUTES);
 
     private int queryManagerExecutorPoolSize = 5;
@@ -156,6 +157,18 @@ public class QueryManagerConfig
     public QueryManagerConfig setMaxQueryHistory(int maxQueryHistory)
     {
         this.maxQueryHistory = maxQueryHistory;
+        return this;
+    }
+
+    public boolean getPruneExpired()
+    {
+        return pruneExpired;
+    }
+
+    @Config("query.prune-expired")
+    public QueryManagerConfig setPruneExpired(boolean pruneExpired)
+    {
+        this.pruneExpired = pruneExpired;
         return this;
     }
 
