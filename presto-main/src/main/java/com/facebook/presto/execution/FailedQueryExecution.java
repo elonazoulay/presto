@@ -144,7 +144,7 @@ public class FailedQueryExecution
     }
 
     @Override
-    public void pruneInfo()
+    public void pruneInfo(boolean retainPlan)
     {
         // no-op
     }
