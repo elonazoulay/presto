@@ -200,7 +200,7 @@ public class SqlQueryManager
                 }
 
                 try {
-                    pruneExpiredQueries();
+                    pruneExpiredQueries(config.getRetainPlan());
                 }
                 catch (Throwable e) {
                     log.warn(e, "Error pruning expired queries");
@@ -491,7 +491,7 @@ public class SqlQueryManager
     /**
      * Prune extraneous info from old queries
      */
-    private void pruneExpiredQueries()
+    private void pruneExpiredQueries(boolean retainPlan)
     {
         if (expirationQueue.size() <= maxQueryHistory) {
             return;
@@ -503,7 +503,7 @@ public class SqlQueryManager
             if (expirationQueue.size() - count <= maxQueryHistory) {
                 break;
             }
-            query.pruneInfo();
+            query.pruneInfo(retainPlan);
             count++;
         }
     }
