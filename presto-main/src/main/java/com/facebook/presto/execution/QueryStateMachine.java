@@ -576,8 +576,8 @@ public class QueryStateMachine
     private boolean transitionToFinished()
     {
         recordDoneStats();
-
-        return queryState.setIf(FINISHED, currentState -> !currentState.isDone());
+        boolean finished = queryState.setIf(FINISHED, currentState -> !currentState.isDone());
+        return finished;
     }
 
     public boolean transitionToFailed(Throwable throwable)
@@ -599,7 +599,6 @@ public class QueryStateMachine
         else {
             log.debug(throwable, "Failure after query %s finished", queryId);
         }
-
         return failed;
     }
 
@@ -616,7 +615,6 @@ public class QueryStateMachine
         if (canceled) {
             session.getTransactionId().ifPresent(autoCommit ? transactionManager::asyncAbort : transactionManager::fail);
         }
-
         return canceled;
     }
 
