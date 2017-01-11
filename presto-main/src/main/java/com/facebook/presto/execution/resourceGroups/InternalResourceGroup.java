@@ -17,11 +17,11 @@ import com.facebook.presto.execution.QueryExecution;
 import com.facebook.presto.execution.QueryInfo;
 import com.facebook.presto.execution.QueryState;
 import com.facebook.presto.spi.PrestoException;
+import com.facebook.presto.spi.QueryId;
+import com.facebook.presto.spi.resourceGroups.QueryQueueInfo;
 import com.facebook.presto.spi.resourceGroups.ResourceGroup;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupId;
 import com.facebook.presto.spi.resourceGroups.SchedulingPolicy;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import io.airlift.units.DataSize;
 import io.airlift.units.Duration;
 import org.weakref.jmx.Managed;
@@ -29,6 +29,7 @@ import org.weakref.jmx.Managed;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
+import java.util.AbstractMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -391,43 +392,35 @@ public class InternalResourceGroup
         return queue;
     }
 
-    // Utility class for viewing currently running queries
-    private static class RunningQueryInfo
-    {
-        ResourceGroupId id;
-        List<QueryInfo> runningQueries;
-
-        public RunningQueryInfo(ResourceGroupId id, List<QueryInfo> runningQueries)
-        {
-            this.id = id;
-            this.runningQueries = runningQueries;
-        }
-    }
-
-    public Map<ResourceGroupId, List<QueryInfo>> getRunningQueryInfo()
+    private Optional<QueryQueueInfo.Builder> getRunningQueryInfo()
     {
         synchronized (root) {
             // Only return information from root groups that contain queued or running queries or subgroups
             if (parent.isPresent() ||
                     (descendantQueuedQueries == 0 && descendantRunningQueries == 0 && queuedQueries.isEmpty() && runningQueries.isEmpty())) {
-                return ImmutableMap.of();
+                return Optional.empty();
             }
-            Map<ResourceGroupId, List<QueryInfo>> runningQueries = new HashMap<>();
+            QueryQueueInfo.Builder infoBuilder = QueryQueueInfo.builder();
+            infoBuilder.setRootGroupId(root.getId());
             LinkedList<InternalResourceGroup> stack = new LinkedList<>();
             stack.push(this);
             while (!stack.isEmpty()) {
                 InternalResourceGroup group = stack.poll();
                 if (!group.runningQueries.isEmpty()) {
-                    runningQueries.computeIfAbsent(group.getId(), k -> new LinkedList<>()).addAll(group.runningQueries.stream().map(QueryExecution::getQueryInfo).collect(Collectors.toList()));
-                } else {
+                    for (QueryExecution queryExecution : group.runningQueries) {
+                        infoBuilder.add(new QueryQueueInfo.QueryEntry(group.getId(), queryExecution.getQueryId(), 0, false));
+                    }
+                }
+                else {
                     if (!group.dirtySubGroups.isEmpty()) {
                         stack.addAll(group.dirtySubGroups);
                     }
                 }
             }
-            return runningQueries;
+            return Optional.of(infoBuilder);
         }
     }
+
     // Utility class for viewing the currently queued queries
     private static class QueueInfo
     {
@@ -451,7 +444,7 @@ public class InternalResourceGroup
             }
         }
 
-        Optional<QueryInfo> getNextQuery()
+        Optional<Map.Entry<ResourceGroupId, QueryId>> getNextQuery()
         {
             if (queuedQueries.isEmpty()) {
                 return Optional.empty();
@@ -463,7 +456,7 @@ public class InternalResourceGroup
             if (policy == QUERY_PRIORITY && !queuedQueries.isEmpty()) {
                 priority = queuedQueries.peek().priority;
             }
-            return Optional.of(queryEntry.queryInfo);
+            return Optional.of(new AbstractMap.SimpleImmutableEntry(id, queryEntry.queryInfo.getQueryId()));
         }
 
         boolean isEmpty()
@@ -489,13 +482,13 @@ public class InternalResourceGroup
         }
     }
 
-    protected List<QueryInfo> getQueryQueueInfo()
+    private Optional<QueryQueueInfo.Builder> getQueuedQueryInfo()
     {
         synchronized (root) {
             // Only return information from root groups that contain queued or running queries or subgroups
             if (parent.isPresent() ||
-                    (descendantQueuedQueries == 0 && descendantRunningQueries == 0 && queuedQueries.isEmpty() && runningQueries.isEmpty())) {
-                return ImmutableList.of();
+                    (descendantQueuedQueries == 0 && queuedQueries.isEmpty())) {
+                return Optional.empty();
             }
             // Utility class for postorder traversal of root groups
             class StackFrame
@@ -543,15 +536,13 @@ public class InternalResourceGroup
                         group.queuedQueries = newQueryQueue;
                     }
                     else {
-                        // This is a non-leaf group
-                        // Put eligible subgroups onto stack
-                        UpdateablePriorityQueue<InternalResourceGroup> newGroups = createEligibleSubgroupsQueue(group.schedulingPolicy);
-                        while (!group.eligibleSubGroups.isEmpty()) {
-                            InternalResourceGroup subGroup = group.eligibleSubGroups.poll();
-                            newGroups.addOrUpdate(subGroup, getSubGroupSchedulingPriority(subGroup.schedulingPolicy, subGroup));
-                            stack.push(new StackFrame(group, 0));
+                        for (InternalResourceGroup subGroup : group.subGroups.values()) {
+                            // Ignore empty subgroups or disabled subgroups
+                            if (subGroup.descendantQueuedQueries == 0 && subGroup.queuedQueries.isEmpty()) {
+                                continue;
+                            }
+                            stack.push(new StackFrame(subGroup, 0));
                         }
-                        group.eligibleSubGroups = newGroups;
                     }
                 }
                 else if (frame.stage == 1) {
@@ -566,13 +557,14 @@ public class InternalResourceGroup
         }
     }
 
-    private List<QueryInfo> extractQueuedQueries(Optional<QueueInfo> queueInfoEntry)
+    private Optional<QueryQueueInfo.Builder> extractQueuedQueries(Optional<QueueInfo> queueInfoEntry)
     {
         checkState(Thread.holdsLock(root), "Must hold lock to extract queued queries");
         synchronized (root) {
-            ImmutableList.Builder<QueryInfo> queuedQueries = ImmutableList.builder();
+            QueryQueueInfo.Builder infoBuilder = QueryQueueInfo.builder();
+            infoBuilder.setRootGroupId(root.getId());
             if (!queueInfoEntry.isPresent()) {
-                return queuedQueries.build();
+                return Optional.empty();
             }
             class StackFrame
             {
@@ -587,7 +579,7 @@ public class InternalResourceGroup
             }
             LinkedList<StackFrame> stack = new LinkedList<>();
             stack.push(new StackFrame(queueInfoEntry.get(), 0));
-
+            int position = 0;
             while (!stack.isEmpty()) {
                 StackFrame frame = stack.poll();
                 QueueInfo entry = frame.queueInfo;
@@ -601,7 +593,11 @@ public class InternalResourceGroup
                     stack.push(frame);
                     if (!entry.queuedQueries.isEmpty()) {
                         // Is a root and leaf group
-                        entry.getNextQuery().map(queryInfo -> queuedQueries.add(queryInfo));
+                        Optional<Map.Entry<ResourceGroupId, QueryId>> queryInfoEntry = entry.getNextQuery();
+                        if (queryInfoEntry.isPresent()) {
+                            QueryQueueInfo.QueryEntry queryEntry = new QueryQueueInfo.QueryEntry(queryInfoEntry.get().getKey(), queryInfoEntry.get().getValue(), position, true);
+                            infoBuilder.add(queryEntry);
+                        }
                     }
                     else {
                         // Root group is guaranteed to have an eligible subgroup
@@ -613,7 +609,11 @@ public class InternalResourceGroup
                     // This is a non-empty subgroup
                     if (!entry.queuedQueries.isEmpty()) {
                         // Is a leaf group
-                        entry.getNextQuery().map(queryInfo -> queuedQueries.add(queryInfo));
+                        Optional<Map.Entry<ResourceGroupId, QueryId>> queryInfoEntry = entry.getNextQuery();
+                        if (queryInfoEntry.isPresent()) {
+                            QueryQueueInfo.QueryEntry queryEntry = new QueryQueueInfo.QueryEntry(queryInfoEntry.get().getKey(), queryInfoEntry.get().getValue(), position, true);
+                            infoBuilder.add(queryEntry);
+                        }
                         if (!entry.isEmpty()) {
                             entry.parent.map(parentEntry -> parentEntry.eligibleSubGroups.addOrUpdate(entry, entry.priority));
                         }
@@ -629,8 +629,23 @@ public class InternalResourceGroup
                     entry.parent.map(parentEntry -> parentEntry.eligibleSubGroups.addOrUpdate(entry, entry.priority));
                 }
             }
-            return queuedQueries.build();
+            return Optional.of(infoBuilder);
         }
+    }
+
+    @Override
+    public Optional<QueryQueueInfo> getQueryQueueInfo()
+    {
+        Optional<QueryQueueInfo.Builder> queuedQueryBuilder = getQueuedQueryInfo();
+        Optional<QueryQueueInfo.Builder> runningQueryBuilder = getRunningQueryInfo();
+        if (queuedQueryBuilder.isPresent() || runningQueryBuilder.isPresent()) {
+            QueryQueueInfo.Builder builder = QueryQueueInfo.builder();
+            builder.setRootGroupId(root.getId());
+            queuedQueryBuilder.ifPresent(queueInfo -> builder.addFromBuilder(queueInfo));
+            runningQueryBuilder.ifPresent(queueInfo -> builder.addFromBuilder(queueInfo));
+            return Optional.of(builder.build());
+        }
+        return Optional.empty();
     }
 
     @Override

@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.resourceGroups;
 
+import com.facebook.presto.resourceGroups.systemtables.QueryQueueCache;
 import com.facebook.presto.spi.memory.ClusterMemoryPoolManager;
 import com.facebook.presto.spi.memory.MemoryPoolId;
 import com.facebook.presto.spi.resourceGroups.ResourceGroup;
@@ -23,6 +24,8 @@ import com.google.common.collect.ImmutableList;
 import io.airlift.units.DataSize;
 import io.airlift.units.Duration;
 
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 import javax.annotation.concurrent.GuardedBy;
 
 import java.util.AbstractMap;
@@ -46,6 +49,7 @@ public abstract class AbstractResourceConfigurationManager
     private final Map<ResourceGroup, Double> generalPoolMemoryFraction = new HashMap<>();
     @GuardedBy("generalPoolMemoryFraction")
     private long generalPoolBytes;
+    private final QueryQueueCache queryQueueCache;
 
     protected abstract Optional<Duration> getCpuQuotaPeriodMillis();
     protected abstract List<ResourceGroupSpec> getRootGroups();
@@ -95,8 +99,9 @@ public abstract class AbstractResourceConfigurationManager
         }
     }
 
-    protected AbstractResourceConfigurationManager(ClusterMemoryPoolManager memoryPoolManager)
+    protected AbstractResourceConfigurationManager(ClusterMemoryPoolManager memoryPoolManager, QueryQueueCache queryQueueCache)
     {
+        this.queryQueueCache = queryQueueCache;
         memoryPoolManager.addChangeListener(new MemoryPoolId("general"), poolInfo -> {
             Map<ResourceGroup, DataSize> memoryLimits = new HashMap<>();
             synchronized (generalPoolMemoryFraction) {
@@ -111,6 +116,18 @@ public abstract class AbstractResourceConfigurationManager
                 entry.getKey().setSoftMemoryLimit(entry.getValue());
             }
         });
+    }
+
+    @PostConstruct
+    public void startCache()
+    {
+        queryQueueCache.start();
+    }
+
+    @PreDestroy
+    public void destroyCache()
+    {
+        queryQueueCache.destroy();
     }
 
     protected Map.Entry<ResourceGroupIdTemplate, ResourceGroupSpec> getMatchingSpec(ResourceGroup group, SelectionContext context)
@@ -171,7 +188,9 @@ public abstract class AbstractResourceConfigurationManager
             group.setSchedulingWeight(match.getSchedulingWeight().get());
         }
         if (match.getJmxExport().isPresent()) {
-            group.setJmxExport(match.getJmxExport().get());
+            if (group.getJmxExport() != match.getJmxExport().get()) {
+                group.setJmxExport(match.getJmxExport().get());
+            }
         }
         if (match.getSoftCpuLimit().isPresent() || match.getHardCpuLimit().isPresent()) {
             // This will never throw an exception if the validateManagerSpec method succeeds
@@ -193,5 +212,6 @@ public abstract class AbstractResourceConfigurationManager
         if (match.getHardCpuLimit().isPresent()) {
             group.setHardCpuLimit(match.getHardCpuLimit().get());
         }
+        queryQueueCache.addGroup(group);
     }
 }

@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.resourceGroups;
 
+import com.facebook.presto.resourceGroups.systemtables.QueryQueueCache;
 import com.facebook.presto.spi.resourceGroups.ResourceGroup;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupConfigurationManager;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupId;
@@ -86,12 +87,13 @@ public class TestFileResourceGroupConfigurationManager
 
     private FileResourceGroupConfigurationManager parse(String fileName)
     {
+        QueryQueueCache queryQueueCache = new QueryQueueCache();
         FileResourceGroupConfig config = new FileResourceGroupConfig();
         config.setConfigFile(getResourceFilePath(fileName));
         return new FileResourceGroupConfigurationManager(
                 (poolId, listener) -> { },
                 config,
-                jsonCodec(ManagerSpec.class));
+                jsonCodec(ManagerSpec.class), queryQueueCache);
     }
 
     private String getResourceFilePath(String fileName)

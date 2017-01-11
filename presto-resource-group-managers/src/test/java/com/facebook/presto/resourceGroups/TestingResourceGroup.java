@@ -13,11 +13,14 @@
  */
 package com.facebook.presto.resourceGroups;
 
+import com.facebook.presto.spi.resourceGroups.QueryQueueInfo;
 import com.facebook.presto.spi.resourceGroups.ResourceGroup;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupId;
 import com.facebook.presto.spi.resourceGroups.SchedulingPolicy;
 import io.airlift.units.DataSize;
 import io.airlift.units.Duration;
+
+import java.util.Optional;
 
 import static java.util.Objects.requireNonNull;
 
@@ -152,5 +155,11 @@ public class TestingResourceGroup
     public void setJmxExport(boolean export)
     {
         jmxExport = export;
+    }
+
+    @Override
+    public Optional<QueryQueueInfo> getQueryQueueInfo()
+    {
+        return Optional.empty();
     }
 }

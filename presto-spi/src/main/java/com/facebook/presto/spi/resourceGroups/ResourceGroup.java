@@ -16,6 +16,8 @@ package com.facebook.presto.spi.resourceGroups;
 import io.airlift.units.DataSize;
 import io.airlift.units.Duration;
 
+import java.util.Optional;
+
 public interface ResourceGroup
 {
     ResourceGroupId getId();
@@ -86,4 +88,6 @@ public interface ResourceGroup
      * Whether to export statistics about this group and allow configuration via JMX.
      */
     void setJmxExport(boolean export);
+
+    Optional<QueryQueueInfo> getQueryQueueInfo();
 }
