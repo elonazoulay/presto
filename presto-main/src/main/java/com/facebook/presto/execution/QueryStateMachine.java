@@ -407,7 +407,7 @@ public class QueryStateMachine
                 outputPositions,
                 operatorStatsSummary.build());
 
-        return new QueryInfo(queryId,
+        QueryInfo queryInfo =  new QueryInfo(queryId,
                 session.toSessionRepresentation(),
                 state,
                 memoryPool.get().getId(),
@@ -430,6 +430,10 @@ public class QueryStateMachine
                 output.get(),
                 completeInfo,
                 getResourceGroup());
+        if (queryInfo.isFinalQueryInfo()) {
+            finalQueryInfo.compareAndSet(Optional.empty(), Optional.of(queryInfo));
+        }
+        return queryInfo;
     }
 
     public VersionedMemoryPoolId getMemoryPool()
@@ -719,15 +723,6 @@ public class QueryStateMachine
     public Optional<QueryInfo> getFinalQueryInfo()
     {
         return finalQueryInfo.get();
-    }
-
-    public QueryInfo updateQueryInfo(Optional<StageInfo> stageInfo)
-    {
-        QueryInfo queryInfo = getQueryInfo(stageInfo);
-        if (queryInfo.isFinalQueryInfo()) {
-            finalQueryInfo.compareAndSet(Optional.empty(), Optional.of(queryInfo));
-        }
-        return queryInfo;
     }
 
     public void pruneQueryInfo()
