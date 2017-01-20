@@ -27,6 +27,8 @@ import com.facebook.presto.spi.resourceGroups.ResourceGroupId;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupInfo;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupSelector;
 import com.facebook.presto.sql.parser.SqlParserOptions;
+import com.facebook.presto.testing.MaterializedResult;
+import com.facebook.presto.testing.MaterializedRow;
 import com.facebook.presto.tests.DistributedQueryRunner;
 import com.facebook.presto.tests.tpch.TpchQueryRunner;
 import com.facebook.presto.tpch.TpchPlugin;
@@ -34,6 +36,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.testng.annotations.Test;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -48,6 +51,7 @@ import static com.facebook.presto.spi.StandardErrorCode.QUERY_REJECTED;
 import static com.facebook.presto.testing.TestingSession.testSessionBuilder;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertTrue;
 
 public class TestQueues
 {
@@ -55,6 +59,12 @@ public class TestQueues
     private static final String NAME = "h2";
     private static final String LONG_LASTING_QUERY = "SELECT COUNT(*) FROM lineitem";
     private static final String HUGE_MEMORY_QUERY = "SELECT COUNT(*) FROM lineitem a join lineitem b on a.orderkey = b.orderkey";
+    private static final String QUEUE_INFO_QUERY = "SELECT root_group_id," +
+            "resource_group_id," +
+            "approximate_order," +
+            "query_id," +
+            "is_queued" +
+            " FROM query_queues";
 
     @Test(timeOut = 60_000)
     public void testRunningQuery()
@@ -162,7 +172,8 @@ public class TestQueues
             ResourceGroupManager manager = queryRunner.getCoordinator().getResourceGroupManager().get();
             do {
                 MILLISECONDS.sleep(500);
-            } while (manager.getResourceGroupInfo(
+            }
+            while (manager.getResourceGroupInfo(
                     new ResourceGroupId(new ResourceGroupId(new ResourceGroupId("global"), "user-user"), "dashboard-user")).getMaxRunningQueries() != 1);
             // Cancel query and verify that third query is still queued
             cancelQuery(queryRunner, firstDashboardQuery);
@@ -190,14 +201,16 @@ public class TestQueues
             //MILLISECONDS.sleep(2000);
             do {
                 MILLISECONDS.sleep(500);
-            } while (getSelectors(queryRunner).size() == selectorCount);
+            }
+            while (getSelectors(queryRunner).size() == selectorCount);
             // Verify the query can be submitted
             queryId = createQuery(queryRunner, newRejectionSession(), LONG_LASTING_QUERY);
             waitForQueryState(queryRunner, queryId, RUNNING);
             dao.deleteSelector(4, "user.*", "(?i).*reject.*");
             do {
                 MILLISECONDS.sleep(500);
-            } while (getSelectors(queryRunner).size() != selectorCount);
+            }
+            while (getSelectors(queryRunner).size() != selectorCount);
             // Verify the query cannot be submitted
             queryId = createQuery(queryRunner, newRejectionSession(), LONG_LASTING_QUERY);
             waitForQueryState(queryRunner, queryId, FAILED);
@@ -235,7 +248,7 @@ public class TestQueues
 
     @Test(timeOut = 240_000)
     public void testHardMemoryLimit()
-        throws Exception
+            throws Exception
     {
         String dbConfigUrl = getDbConfigUrl();
         H2ResourceGroupsDao dao = getDao(dbConfigUrl);
@@ -325,7 +338,72 @@ public class TestQueues
         // Selectors are loaded last
         do {
             MILLISECONDS.sleep(500);
-        } while (getSelectors(queryRunner).size() != 6);
+        }
+        while (getSelectors(queryRunner).size() != 6);
+    }
+
+    @Test(timeOut = 240_000)
+    public void testQueryQueuesSystemTable()
+            throws Exception
+    {
+        String dbConfigUrl = getDbConfigUrl();
+        H2ResourceGroupsDao dao = getDao(dbConfigUrl);
+        try (DistributedQueryRunner queryRunner = createQueryRunner(dbConfigUrl, dao)) {
+            QueryManager queryManager = queryRunner.getCoordinator().getQueryManager();
+            dao.updateResourceGroup(5, "dashboard-${USER}", "1MB", "1MB", 3, 1, null, null, null, null, null, null, null, 3L);
+            MILLISECONDS.sleep(2000);
+            // submit first "dashboard" query
+            QueryId firstDashboardQuery = createQuery(queryRunner, newDashboardSession(), LONG_LASTING_QUERY);
+
+            // wait for the first "dashboard" query to start
+            waitForQueryState(queryRunner, firstDashboardQuery, RUNNING);
+            assertEquals(queryManager.getStats().getRunningQueries(), 1);
+            // submit second "dashboard" query
+
+            QueryId secondDashboardQuery = createQuery(queryRunner, newDashboardSession(), LONG_LASTING_QUERY);
+            MILLISECONDS.sleep(2000);
+            // wait for the second "dashboard" query to be queued ("dashboard.${USER}" queue strategy only allows one "dashboard" query to be accepted for execution)
+            waitForQueryState(queryRunner, secondDashboardQuery, QUEUED);
+
+            assertEquals(queryManager.getStats().getRunningQueries(), 1);
+
+            QueryId thirdDashboardQuery = createQuery(queryRunner, newDashboardSession(), LONG_LASTING_QUERY);
+            MILLISECONDS.sleep(2000);
+            // wait for the second "dashboard" query to be queued ("dashboard.${USER}" queue strategy only allows one "dashboard" query to be accepted for execution)
+            waitForQueryState(queryRunner, thirdDashboardQuery, QUEUED);
+            assertEquals(queryManager.getStats().getRunningQueries(), 1);
+
+            // Allow some time to repopulate QueryQueueInfo cache
+            MILLISECONDS.sleep(2000);
+
+            // Get contents of query queue info system table
+            Set<Long> ordinals = new HashSet<>();
+            int queuedCount = 0;
+            int runningCount = 0;
+            Session adminSession = newAdminSession();
+            MaterializedResult result = queryRunner.execute(adminSession, QUEUE_INFO_QUERY);
+            for (MaterializedRow row : result.getMaterializedRows()) {
+                assertEquals(row.getField(0).toString(), "global");
+                String resourceGroupId = row.getField(1).toString();
+                // Only filter for dashboard queries
+                if (!resourceGroupId.contains("dashboard")) {
+                    continue;
+                }
+                Boolean isQueued = (Boolean) row.getField(4);
+                if (isQueued) {
+                    queuedCount++;
+                }
+                else {
+                    runningCount++;
+                }
+                Long ordinal = (Long) row.getField(2);
+                ordinals.add(ordinal);
+            }
+            assertEquals(queuedCount, 2);
+            assertEquals(runningCount, 1);
+            assertTrue(ordinals.contains(1L));
+            assertTrue(ordinals.contains(2L));
+        }
     }
 
     private static Session newSession()
@@ -361,6 +439,15 @@ public class TestQueues
                 .setCatalog("tpch")
                 .setSchema("sf100000")
                 .setSource(source)
+                .build();
+    }
+
+    private static Session newAdminSession()
+    {
+        return testSessionBuilder()
+                .setCatalog("resource_group_managers")
+                .setSchema("system")
+                .setSource("admin")
                 .build();
     }
 
@@ -421,6 +508,7 @@ public class TestQueues
                     .setConfigurationManager(NAME, ImmutableMap.of("resource-groups.config-db-url", dbConfigUrl));
             queryRunner.installPlugin(new TpchPlugin());
             queryRunner.createCatalog("tpch", "tpch");
+            queryRunner.createCatalog("resource_group_managers", "resource-group-managers");
             setup(queryRunner, dao);
             return queryRunner;
         }
@@ -451,18 +539,20 @@ public class TestQueues
             throws InterruptedException
     {
         dao.insertResourceGroupsGlobalProperties("cpu_quota_period", "1h");
-        dao.insertResourceGroup(1, "global", "1MB", "1GB", 100, 1000, null, null, null, null, null, null, null, null);
-        dao.insertResourceGroup(2, "bi-${USER}", "1MB", "1GB", 3, 2, null, null, null, null, null, null, null, 1L);
-        dao.insertResourceGroup(3, "user-${USER}", "1MB", "1GB", 3, 3, null, null, null, null, null, null, null, 1L);
-        dao.insertResourceGroup(4, "adhoc-${USER}", "1MB", "1GB", 3, 3, null, null, null, null, null, null, null, 3L);
-        dao.insertResourceGroup(5, "dashboard-${USER}", "1MB", "1GB", 1, 1, null, null, null, null, null, null, null, 3L);
+        dao.insertResourceGroup(1, "global", "1MB", "1MB", 100, 1000, null, null, null, null, null, null, null, null);
+        dao.insertResourceGroup(2, "bi-${USER}", "1MB", "1MB", 3, 2, null, null, null, null, null, null, null, 1L);
+        dao.insertResourceGroup(3, "user-${USER}", "1MB", "1MB", 3, 3, null, null, null, null, null, null, null,1L);
+        dao.insertResourceGroup(4, "adhoc-${USER}", "1MB", "1MB", 3, 3, null, null, null, null, null, null, null,3L);
+        dao.insertResourceGroup(5, "dashboard-${USER}", "1MB", "1MB", 1, 1, null, null, null, null, null, null, null,3L);
+        dao.insertResourceGroup(6, "admin", "1MB", "1MB", 3, 3, null, null, null, null, null, null, null,1L);
         dao.insertSelector(2, "user.*", "test");
         dao.insertSelector(4, "user.*", "(?i).*adhoc.*");
         dao.insertSelector(5, "user.*", "(?i).*dashboard.*");
+        dao.insertSelector(6, "user.*", "(?i).*admin.*");
         // Selectors are loaded last
         do {
             MILLISECONDS.sleep(500);
-        } while (getSelectors(queryRunner).size() != 3);
+        } while (getSelectors(queryRunner).size() != 4);
     }
 
     private static List<ResourceGroupSelector> getSelectors(DistributedQueryRunner queryRunner)
