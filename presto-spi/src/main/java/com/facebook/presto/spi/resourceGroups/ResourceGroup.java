@@ -16,6 +16,8 @@ package com.facebook.presto.spi.resourceGroups;
 import io.airlift.units.DataSize;
 import io.airlift.units.Duration;
 
+import java.util.Optional;
+
 public interface ResourceGroup
 {
     ResourceGroupId getId();
@@ -102,4 +104,6 @@ public interface ResourceGroup
     Duration getRunningTimeout();
 
     void setRunningTimeout(Duration runningTimeout);
+
+    Optional<QueryQueueInfo> getQueryQueueInfo();
 }
