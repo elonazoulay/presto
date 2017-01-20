@@ -14,7 +14,10 @@
 package com.facebook.presto.resourceGroups;
 
 import com.facebook.presto.resourceGroups.db.DbResourceGroupConfigurationManagerFactory;
+import com.facebook.presto.resourceGroups.systemtables.QueryQueueCache;
+import com.facebook.presto.resourceGroups.systemtables.ResourceGroupsConnectorFactory;
 import com.facebook.presto.spi.Plugin;
+import com.facebook.presto.spi.connector.ConnectorFactory;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupConfigurationManagerFactory;
 import com.google.common.collect.ImmutableList;
 
@@ -23,16 +26,23 @@ import static com.google.common.base.MoreObjects.firstNonNull;
 public class ResourceGroupManagerPlugin
         implements Plugin
 {
+    private final QueryQueueCache queryQueueCache = new QueryQueueCache();
     @Override
     public Iterable<ResourceGroupConfigurationManagerFactory> getResourceGroupConfigurationManagerFactories()
     {
         return ImmutableList.of(
-                new FileResourceGroupConfigurationManagerFactory(getClassLoader()),
-                new DbResourceGroupConfigurationManagerFactory(getClassLoader()));
+                new FileResourceGroupConfigurationManagerFactory(getClassLoader(), queryQueueCache),
+                new DbResourceGroupConfigurationManagerFactory(getClassLoader(), queryQueueCache));
     }
 
     private static ClassLoader getClassLoader()
     {
         return firstNonNull(Thread.currentThread().getContextClassLoader(), ResourceGroupManagerPlugin.class.getClassLoader());
+    }
+
+    @Override
+    public Iterable<ConnectorFactory> getConnectorFactories()
+    {
+        return ImmutableList.of(new ResourceGroupsConnectorFactory(queryQueueCache));
     }
 }
