@@ -14,8 +14,11 @@
 package com.facebook.presto.execution.resourceGroups;
 
 import com.facebook.presto.execution.QueryExecution;
+import com.facebook.presto.execution.QueryInfo;
 import com.facebook.presto.execution.QueryState;
 import com.facebook.presto.spi.PrestoException;
+import com.facebook.presto.spi.QueryId;
+import com.facebook.presto.spi.resourceGroups.QueryQueueInfo;
 import com.facebook.presto.spi.resourceGroups.ResourceGroup;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupId;
 import com.facebook.presto.spi.resourceGroups.SchedulingPolicy;
@@ -27,11 +30,13 @@ import org.weakref.jmx.Managed;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
+import java.util.AbstractMap;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -371,36 +376,13 @@ public class InternalResourceGroup
                 }
             }
 
-            UpdateablePriorityQueue<InternalResourceGroup> queue;
-            UpdateablePriorityQueue<QueryExecution> queryQueue;
-            switch (policy) {
-                case FAIR:
-                    queue = new FifoQueue<>();
-                    queryQueue = new FifoQueue<>();
-                    break;
-                case WEIGHTED:
-                    queue = new StochasticPriorityQueue<>();
-                    queryQueue = new StochasticPriorityQueue<>();
-                    break;
-                case QUERY_PRIORITY:
-                    // Sub groups must use query priority to ensure ordering
-                    for (InternalResourceGroup group : subGroups.values()) {
-                        group.setSchedulingPolicy(QUERY_PRIORITY);
-                    }
-                    queue = new IndexedPriorityQueue<>();
-                    queryQueue = new IndexedPriorityQueue<>();
-                    break;
-                case WEIGHTED_FIFO:
-                    // Like query priority but with a deadline
-                    for (InternalResourceGroup group : subGroups.values()) {
-                        group.setSchedulingPolicy(WEIGHTED_FIFO);
-                    }
-                    queue = new IndexedPriorityQueue<>();
-                    queryQueue = new FifoQueue<>();
-                    break;
-                default:
-                    throw new UnsupportedOperationException("Unsupported scheduling policy: " + policy);
+            if (policy == QUERY_PRIORITY || policy == WEIGHTED_FIFO) {
+                for (InternalResourceGroup group : subGroups.values()) {
+                    group.setSchedulingPolicy(policy);
+                }
             }
+            UpdateablePriorityQueue<InternalResourceGroup> queue = createEligibleSubgroupsQueue(policy);
+            UpdateablePriorityQueue<QueryExecution> queryQueue = createQueryQueue(policy);
             while (!eligibleSubGroups.isEmpty()) {
                 InternalResourceGroup group = eligibleSubGroups.poll();
                 queue.addOrUpdate(group, getSubGroupSchedulingPriority(policy, group));
@@ -413,6 +395,310 @@ public class InternalResourceGroup
             queuedQueries = queryQueue;
             schedulingPolicy = policy;
         }
+    }
+
+    // Return the eligible subgroup queue for the given scheduling policy
+    // This may be different than the query queue type
+    protected <T> UpdateablePriorityQueue<T> createEligibleSubgroupsQueue(SchedulingPolicy policy)
+    {
+        UpdateablePriorityQueue<T> queue;
+        switch (policy) {
+            case FAIR:
+                queue = new FifoQueue<>();
+                break;
+            case WEIGHTED:
+                queue = new StochasticPriorityQueue<>();
+                break;
+            case QUERY_PRIORITY:
+                queue = new IndexedPriorityQueue<>();
+                break;
+            case WEIGHTED_FIFO:
+                queue = new IndexedPriorityQueue<>();
+                break;
+            default:
+                throw new UnsupportedOperationException("Unsupported scheduling policy: " + policy);
+        }
+        return queue;
+    }
+
+    // Return the query queue for the given scheduling policy
+    // This may be different than the eligible subgroup queue type
+    protected <T> UpdateablePriorityQueue<T> createQueryQueue(SchedulingPolicy policy)
+    {
+        UpdateablePriorityQueue<T> queue;
+        switch (policy) {
+            case FAIR:
+                queue = new FifoQueue<>();
+                break;
+            case WEIGHTED:
+                queue = new StochasticPriorityQueue<>();
+                break;
+            case QUERY_PRIORITY:
+                queue = new IndexedPriorityQueue<>();
+                break;
+            case WEIGHTED_FIFO:
+                queue = new FifoQueue<>();
+                break;
+            default:
+                throw new UnsupportedOperationException("Unsupported scheduling policy: " + policy);
+        }
+        return queue;
+    }
+
+    private Optional<QueryQueueInfo.Builder> getRunningQueryInfo()
+    {
+        synchronized (root) {
+            // Only return information from root groups that contain queued or running queries or subgroups
+            if (parent.isPresent() ||
+                    (descendantQueuedQueries == 0 && descendantRunningQueries == 0 && queuedQueries.isEmpty() && runningQueries.isEmpty())) {
+                return Optional.empty();
+            }
+            QueryQueueInfo.Builder infoBuilder = QueryQueueInfo.builder();
+            infoBuilder.setRootGroupId(root.getId());
+            LinkedList<InternalResourceGroup> stack = new LinkedList<>();
+            stack.push(this);
+            while (!stack.isEmpty()) {
+                InternalResourceGroup group = stack.poll();
+                if (!group.runningQueries.isEmpty()) {
+                    for (QueryExecution queryExecution : group.runningQueries) {
+                        infoBuilder.add(new QueryQueueInfo.QueryEntry(group.getId(), queryExecution.getQueryId(), 0, false));
+                    }
+                }
+                else {
+                    if (!group.dirtySubGroups.isEmpty()) {
+                        stack.addAll(group.dirtySubGroups);
+                    }
+                }
+            }
+            return Optional.of(infoBuilder);
+        }
+    }
+
+    // Utility class for viewing the currently queued queries
+    private static class QueueInfo
+    {
+        ResourceGroupId id;
+        Optional<QueueInfo> parent;
+        SchedulingPolicy policy;
+        int priority;
+        UpdateablePriorityQueue<QueueInfo> eligibleSubGroups;
+        UpdateablePriorityQueue<Entry> queuedQueries;
+
+        public QueueInfo(ResourceGroupId id, Optional<QueueInfo> parent, SchedulingPolicy policy, int priority, UpdateablePriorityQueue<QueueInfo> eligibleSubGroups, UpdateablePriorityQueue<Entry> queuedQueries)
+        {
+            this.id = id;
+            this.parent = parent;
+            this.policy = policy;
+            this.priority = priority;
+            this.eligibleSubGroups = eligibleSubGroups;
+            this.queuedQueries = queuedQueries;
+            if (policy == QUERY_PRIORITY) {
+                checkState(queuedQueries instanceof IndexedPriorityQueue, "Queued queries not ordered");
+            }
+        }
+
+        Optional<Map.Entry<ResourceGroupId, QueryId>> getNextQuery()
+        {
+            if (queuedQueries.isEmpty()) {
+                return Optional.empty();
+            }
+
+            Entry queryEntry = queuedQueries.poll();
+            // If the group uses QUERY_PRIORITY scheduling policy
+            // set group priority to highest query priority
+            if (policy == QUERY_PRIORITY && !queuedQueries.isEmpty()) {
+                priority = queuedQueries.peek().priority;
+            }
+            return Optional.of(new AbstractMap.SimpleImmutableEntry(id, queryEntry.queryInfo.getQueryId()));
+        }
+
+        boolean isEmpty()
+        {
+            return eligibleSubGroups.isEmpty() && queuedQueries.isEmpty();
+        }
+
+        private static class Entry
+        {
+            QueryInfo queryInfo;
+            int priority;
+
+            public Entry(QueryInfo queryInfo, int priority)
+            {
+                this.queryInfo = queryInfo;
+                this.priority = priority;
+            }
+
+            public Entry(QueryExecution query)
+            {
+                this(query.getQueryInfo(), getQueryPriority(query.getSession()));
+            }
+        }
+    }
+
+    private Optional<QueryQueueInfo.Builder> getQueuedQueryInfo()
+    {
+        synchronized (root) {
+            // Only return information from root groups that contain queued or running queries or subgroups
+            if (parent.isPresent() ||
+                    (descendantQueuedQueries == 0 && queuedQueries.isEmpty())) {
+                return Optional.empty();
+            }
+            // Utility class for postorder traversal of root groups
+            class StackFrame
+            {
+                InternalResourceGroup group;
+                int stage;
+
+                public StackFrame(InternalResourceGroup group, int stage)
+                {
+                    this.group = group;
+                    this.stage = stage;
+                }
+            }
+            Map<ResourceGroupId, QueueInfo> builder = new HashMap<>();
+            LinkedList<StackFrame> stack = new LinkedList<>();
+            stack.push(new StackFrame(this, 0));
+            while (!stack.isEmpty()) {
+                StackFrame frame = stack.poll();
+                InternalResourceGroup group = frame.group;
+                if (frame.stage == 0) {
+                    // Create updateable priority queues with the same implementation as the resource groups
+                    // So that queries will be dequeued in a similar order:
+                    // This does not account for memory or cpu restrictions on subgroups since we do not know
+                    // ahead of time
+                    UpdateablePriorityQueue<QueueInfo> eligibleSubGroups = createEligibleSubgroupsQueue(group.schedulingPolicy);
+                    UpdateablePriorityQueue<QueueInfo.Entry> queuedQueries = createQueryQueue(group.schedulingPolicy);
+                    Optional<QueueInfo> parentEntry = (group.parent.isPresent()) ? Optional.of(builder.get(group.parent.get().id)) : Optional.empty();
+                    QueueInfo entry = new QueueInfo(group.getId(), parentEntry, group.schedulingPolicy, getSubGroupSchedulingPriority(group.schedulingPolicy, group), eligibleSubGroups, queuedQueries);
+                    // Add to builder map
+                    builder.put(group.getId(), entry);
+                    // Add to child parent map
+                    // Push back onto stack with stage = 1
+                    stack.push(new StackFrame(group, 1));
+                    if (!group.queuedQueries.isEmpty()) {
+                        // This is a leaf group
+                        // Put queued query info in entry
+                        // Add parent if present
+                        UpdateablePriorityQueue<QueryExecution> newQueryQueue = createQueryQueue(group.schedulingPolicy);
+                        while (!group.queuedQueries.isEmpty()) {
+                            QueryExecution query = group.queuedQueries.poll();
+                            QueueInfo.Entry queryEntry = new QueueInfo.Entry(query);
+                            queuedQueries.addOrUpdate(queryEntry, queryEntry.priority);
+                            newQueryQueue.addOrUpdate(query, getQueryPriority(query.getSession()));
+                        }
+                        group.queuedQueries = newQueryQueue;
+                    }
+                    else {
+                        for (InternalResourceGroup subGroup : group.subGroups.values()) {
+                            // Ignore empty subgroups or disabled subgroups
+                            if (subGroup.descendantQueuedQueries == 0 && subGroup.queuedQueries.isEmpty()) {
+                                continue;
+                            }
+                            stack.push(new StackFrame(subGroup, 0));
+                        }
+                    }
+                }
+                else if (frame.stage == 1) {
+                    // entry is guaranteed to be in the builder map
+                    QueueInfo entry = builder.get(group.getId());
+                    // If parent is present add this entry to parent entry's eligible subgroups
+                    Optional<QueueInfo> parentEntry = entry.parent;
+                    parentEntry.map(parent -> parent.eligibleSubGroups.addOrUpdate(entry, entry.priority));
+                }
+            }
+            return extractQueuedQueries(Optional.ofNullable(builder.get(id)));
+        }
+    }
+
+    private Optional<QueryQueueInfo.Builder> extractQueuedQueries(Optional<QueueInfo> queueInfoEntry)
+    {
+        checkState(Thread.holdsLock(root), "Must hold lock to extract queued queries");
+        synchronized (root) {
+            QueryQueueInfo.Builder infoBuilder = QueryQueueInfo.builder();
+            infoBuilder.setRootGroupId(root.getId());
+            if (!queueInfoEntry.isPresent()) {
+                return Optional.empty();
+            }
+            class StackFrame
+            {
+                QueueInfo queueInfo;
+                int stage;
+
+                public StackFrame(QueueInfo queueInfo, int stage)
+                {
+                    this.queueInfo = queueInfo;
+                    this.stage = stage;
+                }
+            }
+            LinkedList<StackFrame> stack = new LinkedList<>();
+            stack.push(new StackFrame(queueInfoEntry.get(), 0));
+            int position = 1;
+            while (!stack.isEmpty()) {
+                StackFrame frame = stack.poll();
+                QueueInfo entry = frame.queueInfo;
+                // If entry has no leaf groups with queued queries ignore
+                if (entry.isEmpty()) {
+                    continue;
+                }
+                int stage = frame.stage;
+                if (stage == 0) {
+                    // This is the root group, only remove if empty
+                    stack.push(frame);
+                    if (!entry.queuedQueries.isEmpty()) {
+                        // Is a root and leaf group
+                        Optional<Map.Entry<ResourceGroupId, QueryId>> queryInfoEntry = entry.getNextQuery();
+                        if (queryInfoEntry.isPresent()) {
+                            QueryQueueInfo.QueryEntry queryEntry = new QueryQueueInfo.QueryEntry(queryInfoEntry.get().getKey(), queryInfoEntry.get().getValue(), position++, true);
+                            infoBuilder.add(queryEntry);
+                        }
+                    }
+                    else {
+                        // Root group is guaranteed to have an eligible subgroup
+                        QueueInfo subGroup = entry.eligibleSubGroups.poll();
+                        stack.push(new StackFrame(subGroup, 1));
+                    }
+                }
+                else if (stage == 1) {
+                    // This is a non-empty subgroup
+                    if (!entry.queuedQueries.isEmpty()) {
+                        // Is a leaf group
+                        Optional<Map.Entry<ResourceGroupId, QueryId>> queryInfoEntry = entry.getNextQuery();
+                        if (queryInfoEntry.isPresent()) {
+                            QueryQueueInfo.QueryEntry queryEntry = new QueryQueueInfo.QueryEntry(queryInfoEntry.get().getKey(), queryInfoEntry.get().getValue(), position++, true);
+                            infoBuilder.add(queryEntry);
+                        }
+                        if (!entry.isEmpty()) {
+                            entry.parent.map(parentEntry -> parentEntry.eligibleSubGroups.addOrUpdate(entry, entry.priority));
+                        }
+                    }
+                    else {
+                        stack.push(new StackFrame(entry, 2));
+                        QueueInfo subGroup = entry.eligibleSubGroups.poll();
+                        stack.push(new StackFrame(subGroup, 1));
+                    }
+                }
+                else if (stage == 2) {
+                    // Non empty intermediate group will be added back to parent
+                    entry.parent.map(parentEntry -> parentEntry.eligibleSubGroups.addOrUpdate(entry, entry.priority));
+                }
+            }
+            return Optional.of(infoBuilder);
+        }
+    }
+
+    @Override
+    public Optional<QueryQueueInfo> getQueryQueueInfo()
+    {
+        Optional<QueryQueueInfo.Builder> queuedQueryBuilder = getQueuedQueryInfo();
+        Optional<QueryQueueInfo.Builder> runningQueryBuilder = getRunningQueryInfo();
+        if (queuedQueryBuilder.isPresent() || runningQueryBuilder.isPresent()) {
+            QueryQueueInfo.Builder builder = QueryQueueInfo.builder();
+            builder.setRootGroupId(root.getId());
+            queuedQueryBuilder.ifPresent(queueInfo -> builder.addFromBuilder(queueInfo));
+            runningQueryBuilder.ifPresent(queueInfo -> builder.addFromBuilder(queueInfo));
+            return Optional.of(builder.build());
+        }
+        return Optional.empty();
     }
 
     @Override

@@ -18,6 +18,7 @@ import com.facebook.presto.resourceGroups.ManagerSpec;
 import com.facebook.presto.resourceGroups.ResourceGroupIdTemplate;
 import com.facebook.presto.resourceGroups.ResourceGroupSpec;
 import com.facebook.presto.resourceGroups.SelectorSpec;
+import com.facebook.presto.resourceGroups.systemtables.QueryQueueCache;
 import com.facebook.presto.spi.memory.ClusterMemoryPoolManager;
 import com.facebook.presto.spi.resourceGroups.ResourceGroup;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupId;
@@ -71,9 +72,9 @@ public class DbResourceGroupConfigurationManager
     private final AtomicBoolean started = new AtomicBoolean();
 
     @Inject
-    public DbResourceGroupConfigurationManager(ClusterMemoryPoolManager memoryPoolManager, ResourceGroupsDao dao)
+    public DbResourceGroupConfigurationManager(ClusterMemoryPoolManager memoryPoolManager, ResourceGroupsDao dao, QueryQueueCache queryQueueCache)
     {
-        super(memoryPoolManager);
+        super(memoryPoolManager, queryQueueCache);
         requireNonNull(memoryPoolManager, "memoryPoolManager is null");
         requireNonNull(dao, "daoProvider is null");
         this.dao = dao;
@@ -98,6 +99,7 @@ public class DbResourceGroupConfigurationManager
     @PreDestroy
     public void destroy()
     {
+        destroyCache();
         configExecutor.shutdownNow();
     }
 
@@ -107,6 +109,7 @@ public class DbResourceGroupConfigurationManager
         if (started.compareAndSet(false, true)) {
             configExecutor.scheduleWithFixedDelay(this::load, 1, 1, TimeUnit.SECONDS);
         }
+        startCache();
     }
 
     @Override

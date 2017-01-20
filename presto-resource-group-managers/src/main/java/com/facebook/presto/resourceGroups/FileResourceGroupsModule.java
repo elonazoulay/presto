@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.resourceGroups;
 
+import com.facebook.presto.resourceGroups.systemtables.QueryQueueCache;
 import com.google.inject.Binder;
 import com.google.inject.Module;
 import com.google.inject.Scopes;
@@ -23,9 +24,17 @@ import static io.airlift.json.JsonCodecBinder.jsonCodecBinder;
 public class FileResourceGroupsModule
         implements Module
 {
+    private final QueryQueueCache queryQueueCache;
+
+    public FileResourceGroupsModule(QueryQueueCache queryQueueCache)
+    {
+        this.queryQueueCache = queryQueueCache;
+    }
+
     @Override
     public void configure(Binder binder)
     {
+        binder.bind(QueryQueueCache.class).toInstance(queryQueueCache);
         jsonCodecBinder(binder).bindJsonCodec(ManagerSpec.class);
         configBinder(binder).bindConfig(FileResourceGroupConfig.class);
         binder.bind(FileResourceGroupConfigurationManager.class).in(Scopes.SINGLETON);

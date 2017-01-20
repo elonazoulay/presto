@@ -14,6 +14,7 @@
 package com.facebook.presto.resourceGroups.db;
 
 import com.facebook.presto.execution.resourceGroups.InternalResourceGroup;
+import com.facebook.presto.resourceGroups.systemtables.QueryQueueCache;
 import com.facebook.presto.spi.resourceGroups.SchedulingPolicy;
 import com.facebook.presto.spi.resourceGroups.SelectionContext;
 import io.airlift.units.DataSize;
@@ -46,6 +47,7 @@ public class TestDbResourceGroupConfigurationManager
     @Test
     public void testConfiguration()
     {
+        QueryQueueCache queryQueueCache = new QueryQueueCache();
         H2DaoProvider daoProvider = setup("test_configuration");
         H2ResourceGroupsDao dao = daoProvider.get();
         dao.createResourceGroupsGlobalPropertiesTable();
@@ -56,7 +58,7 @@ public class TestDbResourceGroupConfigurationManager
         dao.insertResourceGroup(2, "sub", "2MB", "1GB", 4, 3, null, 5, null, null, null, "1h", "1h", 1L);
         dao.insertSelector(2, null, null);
         DbResourceGroupConfigurationManager manager = new DbResourceGroupConfigurationManager((poolId, listener) -> { },
-                daoProvider.get());
+                daoProvider.get(), queryQueueCache);
         AtomicBoolean exported = new AtomicBoolean();
         InternalResourceGroup global = new InternalResourceGroup.RootInternalResourceGroup("global", (group, export) -> exported.set(export), directExecutor());
         manager.configure(global, new SelectionContext(true, "user", Optional.empty(), 1));
@@ -108,6 +110,7 @@ public class TestDbResourceGroupConfigurationManager
     @Test(expectedExceptions = IllegalStateException.class, expectedExceptionsMessageRegExp = "No matching configuration found for: missing")
     public void testMissing()
     {
+        QueryQueueCache queryQueueCache = new QueryQueueCache();
         H2DaoProvider daoProvider = setup("test_missing");
         H2ResourceGroupsDao dao = daoProvider.get();
         dao.createResourceGroupsGlobalPropertiesTable();
@@ -119,7 +122,7 @@ public class TestDbResourceGroupConfigurationManager
         dao.insertSelector(2, null, null);
         DbResourceGroupConfigurationManager manager = new DbResourceGroupConfigurationManager((poolId, listener) -> {
         },
-                daoProvider.get());
+                daoProvider.get(), queryQueueCache);
         InternalResourceGroup missing = new InternalResourceGroup.RootInternalResourceGroup("missing", (group, export) -> { }, directExecutor());
         manager.configure(missing, new SelectionContext(true, "user", Optional.empty(), 1));
     }
@@ -128,6 +131,7 @@ public class TestDbResourceGroupConfigurationManager
     public void testReconfig()
             throws Exception
     {
+        QueryQueueCache queryQueueCache = new QueryQueueCache();
         H2DaoProvider daoProvider = setup("test_reconfig");
         H2ResourceGroupsDao dao = daoProvider.get();
         dao.createResourceGroupsGlobalPropertiesTable();
@@ -139,7 +143,7 @@ public class TestDbResourceGroupConfigurationManager
         dao.insertResourceGroupsGlobalProperties("cpu_quota_period", "1h");
         DbResourceGroupConfigurationManager manager = new DbResourceGroupConfigurationManager(
                 (poolId, listener) -> { },
-                daoProvider.get());
+                daoProvider.get(), queryQueueCache);
         manager.start();
         AtomicBoolean exported = new AtomicBoolean();
         InternalResourceGroup global = new InternalResourceGroup.RootInternalResourceGroup("global", (group, export) -> exported.set(export), directExecutor());
