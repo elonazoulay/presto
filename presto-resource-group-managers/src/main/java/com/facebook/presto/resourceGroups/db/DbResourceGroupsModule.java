@@ -23,6 +23,11 @@ import static io.airlift.configuration.ConfigBinder.configBinder;
 public class DbResourceGroupsModule
         implements Module
 {
+    //private final QueryQueueCache queryQueueCache;
+    public DbResourceGroupsModule(/*QueryQueueCache queryQueueCache*/)
+    {
+        //this.queryQueueCache = queryQueueCache;
+    }
     @Override
     public void configure(Binder binder)
     {

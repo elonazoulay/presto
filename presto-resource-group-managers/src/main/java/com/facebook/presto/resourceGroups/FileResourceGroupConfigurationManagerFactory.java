@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.resourceGroups;
 
+import com.facebook.presto.resourceGroups.systemtables.QueryQueueCache;
 import com.facebook.presto.spi.classloader.ThreadContextClassLoader;
 import com.facebook.presto.spi.memory.ClusterMemoryPoolManager;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupConfigurationManager;
@@ -31,10 +32,11 @@ public class FileResourceGroupConfigurationManagerFactory
         implements ResourceGroupConfigurationManagerFactory
 {
     private final ClassLoader classLoader;
-
-    public FileResourceGroupConfigurationManagerFactory(ClassLoader classLoader)
+    private final QueryQueueCache queryQueueCache;
+    public FileResourceGroupConfigurationManagerFactory(ClassLoader classLoader, QueryQueueCache queryQueueCache)
     {
         this.classLoader = requireNonNull(classLoader, "classLoader is null");
+        this.queryQueueCache = queryQueueCache;
     }
 
     @Override
@@ -49,7 +51,7 @@ public class FileResourceGroupConfigurationManagerFactory
         try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
             Bootstrap app = new Bootstrap(
                     new JsonModule(),
-                    new FileResourceGroupsModule(),
+                    new FileResourceGroupsModule(queryQueueCache),
                     binder -> binder.bind(ClusterMemoryPoolManager.class).toInstance(context.getMemoryPoolManager())
             );
 
