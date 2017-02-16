@@ -21,6 +21,7 @@ import io.airlift.log.Logger;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -60,7 +61,14 @@ public class QueryQueueCache
                 if (rootGroup == null) {
                     continue;
                 }
-                rootGroup.getQueryQueueInfo().map(queryQueueInfo -> queueInfo.put(rootGroupId, queryQueueInfo));
+                Optional<QueryQueueInfo> rootGroupInfo = rootGroup.getQueryQueueInfo();
+                if (rootGroupInfo.isPresent()) {
+                    queueInfo.put(rootGroupId, rootGroupInfo.get());
+                }
+                else {
+                    queueInfo.put(rootGroupId, QueryQueueInfo.builder().setRootGroupId(rootGroupId).build());
+                }
+                //rootGroup.getQueryQueueInfo().map(queryQueueInfo -> queueInfo.put(rootGroupId, queryQueueInfo));
             }
         }
         catch (Exception ex) {

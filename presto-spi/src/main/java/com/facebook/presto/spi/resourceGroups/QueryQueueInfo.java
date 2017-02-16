@@ -87,23 +87,26 @@ public class QueryQueueInfo
         {
         }
 
-        public void setRootGroupId(ResourceGroupId rootGroupId)
+        public Builder setRootGroupId(ResourceGroupId rootGroupId)
         {
             this.rootGroupId = rootGroupId;
+            return this;
         }
 
-        public void add(QueryEntry entry)
+        public Builder add(QueryEntry entry)
         {
             queryQueue.add(entry);
+            return this;
         }
 
-        public void addFromBuilder(Builder builder)
+        public Builder addFromBuilder(Builder builder)
         {
             // Sanity check that both builders pertain to the same root group
             if (!builder.rootGroupId.equals(rootGroupId)) {
                 throw new IllegalStateException(format("Root group id mismatch"));
             }
             queryQueue.addAll(builder.queryQueue);
+            return this;
         }
 
         public QueryQueueInfo build()
