@@ -13,10 +13,12 @@
  */
 package com.facebook.presto.plugin.memory;
 
+import com.facebook.presto.plugin.memory.config.MemoryConfigManager;
 import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.block.Block;
 import com.google.common.collect.ImmutableList;
+import io.airlift.log.Logger;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -32,28 +34,45 @@ import java.util.Set;
 
 import static com.facebook.presto.plugin.memory.MemoryErrorCode.MEMORY_LIMIT_EXCEEDED;
 import static com.facebook.presto.plugin.memory.MemoryErrorCode.MISSING_DATA;
+import static com.facebook.presto.plugin.memory.MemoryErrorCode.TABLE_SIZE_PER_NODE_EXCEEDED;
 import static java.lang.String.format;
 
 @ThreadSafe
 public class MemoryPagesStore
 {
-    private final long maxBytes;
+    private static final Logger log = Logger.get(MemoryPagesStore.class);
+    private final MemoryConfigManager configManager;
 
     @GuardedBy("this")
     private long currentBytes = 0;
 
     @Inject
-    public MemoryPagesStore(MemoryConfig config)
+    public MemoryPagesStore(MemoryConfigManager configManager)
     {
-        this.maxBytes = config.getMaxDataPerNode().toBytes();
+        this.configManager = configManager;
     }
 
+    @GuardedBy("this")
     private final Map<Long, List<Page>> pages = new HashMap<>();
 
-    public synchronized void initialize(long tableId)
+    @GuardedBy("this")
+    private final Map<Long, Long> tableSizes = new HashMap<>();
+
+    private long getMaxBytes()
+    {
+        return configManager.getConfig().getMaxDataPerNode().toBytes();
+    }
+
+    private long getMaxBytesPerTable()
+    {
+        return configManager.getConfig().getMaxTableSizePerNode().toBytes();
+    }
+
+    public synchronized void initialize(String tableName, long tableId)
     {
         if (!pages.containsKey(tableId)) {
             pages.put(tableId, new ArrayList<>());
+            tableSizes.put(tableId, 0L);
         }
     }
 
@@ -64,11 +83,17 @@ public class MemoryPagesStore
         }
 
         long newSize = currentBytes + page.getRetainedSizeInBytes();
+        long newTableSize = tableSizes.get(tableId) + page.getRetainedSizeInBytes();
+        long maxBytes = getMaxBytes();
         if (maxBytes < newSize) {
             throw new PrestoException(MEMORY_LIMIT_EXCEEDED, format("Memory limit [%d] for memory connector exceeded", maxBytes));
         }
+        long maxBytesPerTable = getMaxBytesPerTable();
+        if (maxBytesPerTable < newTableSize) {
+            throw new PrestoException(TABLE_SIZE_PER_NODE_EXCEEDED, format("Table size [%d] bytes per node exceeded", maxBytesPerTable));
+        }
         currentBytes = newSize;
-
+        tableSizes.put(tableId, newSize);
         List<Page> tablePages = pages.get(tableId);
         tablePages.add(page);
     }
@@ -85,8 +110,19 @@ public class MemoryPagesStore
         for (int i = partNumber; i < tablePages.size(); i += totalParts) {
             partitionedPages.add(getColumns(tablePages.get(i), columnIndexes));
         }
-
         return partitionedPages.build();
+    }
+
+    public synchronized List<Long> listTableIds()
+    {
+        return ImmutableList.copyOf(pages.keySet());
+    }
+
+    public synchronized SizeInfo getSize(Long tableId)
+    {
+        long sizeBytes = pages.get(tableId).stream().mapToLong(Page::getRetainedSizeInBytes).sum();
+        long rowCount = pages.get(tableId).stream().mapToLong(Page::getPositionCount).sum();
+        return new SizeInfo(rowCount, sizeBytes);
     }
 
     public synchronized boolean contains(Long tableId)
@@ -118,6 +154,7 @@ public class MemoryPagesStore
                     currentBytes -= removedPage.getRetainedSizeInBytes();
                 }
                 tablePages.remove();
+                tableSizes.remove(tableId);
             }
         }
     }
@@ -132,5 +169,27 @@ public class MemoryPagesStore
         }
 
         return new Page(page.getPositionCount(), outputBlocks);
+    }
+
+    public static class SizeInfo
+    {
+        private final long rowCount;
+        private final long byteSize;
+
+        public SizeInfo(long rowCount, long byteSize)
+        {
+            this.rowCount = rowCount;
+            this.byteSize = byteSize;
+        }
+
+        public long getRowCount()
+        {
+            return rowCount;
+        }
+
+        public long getsizeBytes()
+        {
+            return byteSize;
+        }
     }
 }

@@ -37,19 +37,22 @@ public final class MemoryTableHandle
     private final Long tableId;
     private final List<MemoryColumnHandle> columnHandles;
     private final List<HostAddress> hosts;
+    private final long splitsPerWorker;
 
     public MemoryTableHandle(
             String connectorId,
             Long tableId,
             ConnectorTableMetadata tableMetadata,
-            List<HostAddress> hosts)
+            List<HostAddress> hosts,
+            long splitsPerWorker)
     {
         this(connectorId,
                 tableMetadata.getTable().getSchemaName(),
                 tableMetadata.getTable().getTableName(),
                 tableId,
                 MemoryColumnHandle.extractColumnHandles(tableMetadata.getColumns()),
-                hosts);
+                hosts,
+                splitsPerWorker);
     }
 
     @JsonCreator
@@ -59,7 +62,8 @@ public final class MemoryTableHandle
             @JsonProperty("tableName") String tableName,
             @JsonProperty("tableId") Long tableId,
             @JsonProperty("columnHandles") List<MemoryColumnHandle> columnHandles,
-            @JsonProperty("hosts") List<HostAddress> hosts)
+            @JsonProperty("hosts") List<HostAddress> hosts,
+            @JsonProperty("splitsPerWorker") long splitsPerWorker)
     {
         this.connectorId = requireNonNull(connectorId, "connectorId is null");
         this.schemaName = requireNonNull(schemaName, "schemaName is null");
@@ -67,6 +71,7 @@ public final class MemoryTableHandle
         this.tableId = requireNonNull(tableId, "tableId is null");
         this.columnHandles = requireNonNull(columnHandles, "columnHandles is null");
         this.hosts = requireNonNull(hosts, "hosts is null");
+        this.splitsPerWorker = splitsPerWorker;
     }
 
     @JsonProperty
@@ -105,6 +110,12 @@ public final class MemoryTableHandle
         return hosts;
     }
 
+    @JsonProperty
+    public long getSplitsPerWorker()
+    {
+        return splitsPerWorker;
+    }
+
     public ConnectorTableMetadata toTableMetadata()
     {
         return new ConnectorTableMetadata(
@@ -134,7 +145,8 @@ public final class MemoryTableHandle
         }
         MemoryTableHandle other = (MemoryTableHandle) obj;
         return Objects.equals(this.getConnectorId(), other.getConnectorId()) &&
-                Objects.equals(this.getTableId(), other.getTableId());
+                Objects.equals(this.getTableId(), other.getTableId()) &&
+                this.getSplitsPerWorker() == other.getSplitsPerWorker();
     }
 
     @Override
@@ -146,6 +158,7 @@ public final class MemoryTableHandle
                 .add("tableName", tableName)
                 .add("tableId", tableId)
                 .add("columnHandles", columnHandles)
+                .add("splitsPerWorker", splitsPerWorker)
                 .toString();
     }
 }

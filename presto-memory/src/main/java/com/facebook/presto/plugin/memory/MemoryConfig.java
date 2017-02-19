@@ -22,6 +22,7 @@ public class MemoryConfig
 {
     private int splitsPerNode = Runtime.getRuntime().availableProcessors();
     private DataSize maxDataPerNode = new DataSize(128, DataSize.Unit.MEGABYTE);
+    private DataSize maxTableSizePerNode = new DataSize(64, DataSize.Unit.MEGABYTE);
 
     @NotNull
     public int getSplitsPerNode()
@@ -46,6 +47,19 @@ public class MemoryConfig
     public MemoryConfig setMaxDataPerNode(DataSize maxDataPerNode)
     {
         this.maxDataPerNode = maxDataPerNode;
+        return this;
+    }
+
+    @NotNull
+    public DataSize getMaxTableSizePerNode()
+    {
+        return maxTableSizePerNode;
+    }
+
+    @Config("max-table-size-per-node")
+    public MemoryConfig setMaxTableSizePerNode(DataSize maxTableSizePerNode)
+    {
+        this.maxTableSizePerNode = maxTableSizePerNode;
         return this;
     }
 }

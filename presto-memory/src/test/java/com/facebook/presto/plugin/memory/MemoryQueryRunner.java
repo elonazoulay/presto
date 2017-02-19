@@ -70,7 +70,7 @@ public final class MemoryQueryRunner
     {
         Logging.initialize();
         DistributedQueryRunner queryRunner = createQueryRunner(ImmutableMap.of("http-server.http.port", "8080"));
-        Thread.sleep(10);
+        Thread.sleep(Long.MAX_VALUE);
         Logger log = Logger.get(MemoryQueryRunner.class);
         log.info("======== SERVER STARTED ========");
         log.info("\n====\n%s\n====", queryRunner.getCoordinator().getBaseUrl());

@@ -14,15 +14,22 @@
 
 package com.facebook.presto.plugin.memory;
 
+import com.facebook.presto.spi.SystemTable;
 import com.facebook.presto.spi.connector.Connector;
 import com.facebook.presto.spi.connector.ConnectorMetadata;
+import com.facebook.presto.spi.connector.ConnectorNodePartitioningProvider;
 import com.facebook.presto.spi.connector.ConnectorPageSinkProvider;
 import com.facebook.presto.spi.connector.ConnectorPageSourceProvider;
 import com.facebook.presto.spi.connector.ConnectorSplitManager;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
+import com.facebook.presto.spi.procedure.Procedure;
 import com.facebook.presto.spi.transaction.IsolationLevel;
 
 import javax.inject.Inject;
+
+import java.util.Set;
+
+import static java.util.Objects.requireNonNull;
 
 public class MemoryConnector
         implements Connector
@@ -31,18 +38,27 @@ public class MemoryConnector
     private final MemorySplitManager splitManager;
     private final MemoryPageSourceProvider pageSourceProvider;
     private final MemoryPageSinkProvider pageSinkProvider;
+    private final MemoryNodePartitioningProvider partitioningProvider;
+    private final Set<SystemTable> systemTables;
+    private final Set<Procedure> procedures;
 
     @Inject
     public MemoryConnector(
             MemoryMetadata metadata,
             MemorySplitManager splitManager,
             MemoryPageSourceProvider pageSourceProvider,
-            MemoryPageSinkProvider pageSinkProvider)
+            MemoryPageSinkProvider pageSinkProvider,
+            MemoryNodePartitioningProvider partitioningProvider,
+            Set<SystemTable> systemTables,
+            Set<Procedure> procedures)
     {
         this.metadata = metadata;
         this.splitManager = splitManager;
         this.pageSourceProvider = pageSourceProvider;
         this.pageSinkProvider = pageSinkProvider;
+        this.partitioningProvider = partitioningProvider;
+        this.systemTables = requireNonNull(systemTables, "systemTables is null");
+        this.procedures = requireNonNull(procedures);
     }
 
     @Override
@@ -73,5 +89,23 @@ public class MemoryConnector
     public ConnectorPageSinkProvider getPageSinkProvider()
     {
         return pageSinkProvider;
+    }
+
+    @Override
+    public ConnectorNodePartitioningProvider getNodePartitioningProvider()
+    {
+        return partitioningProvider;
+    }
+
+    @Override
+    public Set<SystemTable> getSystemTables()
+    {
+        return systemTables;
+    }
+
+    @Override
+    public Set<Procedure> getProcedures()
+    {
+        return procedures;
     }
 }

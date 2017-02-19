@@ -14,11 +14,17 @@
 
 package com.facebook.presto.plugin.memory;
 
+import com.facebook.presto.plugin.memory.config.MemoryConfigManager;
+import com.facebook.presto.plugin.memory.config.db.H2DaoProvider;
+import com.facebook.presto.plugin.memory.config.db.MemoryConfigSpec;
+import com.facebook.presto.plugin.memory.config.db.MemoryDbConfig;
 import com.facebook.presto.spi.ConnectorInsertTableHandle;
 import com.facebook.presto.spi.ConnectorOutputTableHandle;
 import com.facebook.presto.spi.ConnectorPageSink;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.HostAddress;
+import com.facebook.presto.spi.Node;
+import com.facebook.presto.spi.NodeManager;
 import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.block.BlockBuilder;
@@ -28,6 +34,8 @@ import com.google.common.collect.ImmutableSet;
 import io.airlift.units.DataSize;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
+
+import java.util.Set;
 
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static java.lang.String.format;
@@ -39,6 +47,11 @@ import static org.testng.Assert.assertTrue;
 public class TestMemoryPagesStore
 {
     public static final ConnectorSession SESSION = new TestingConnectorSession(ImmutableList.of());
+    public static final MemoryConfigSpec memoryConfig = new MemoryConfigSpec(
+            128L * 1024 * 1024,
+            32 * 1024 * 1024,
+            Runtime.getRuntime().availableProcessors()
+    );
 
     private MemoryPagesStore pagesStore;
     private MemoryPageSinkProvider pageSinkProvider;
@@ -46,8 +59,39 @@ public class TestMemoryPagesStore
     @BeforeMethod
     public void setUp()
     {
-        pagesStore = new MemoryPagesStore(new MemoryConfig().setMaxDataPerNode(new DataSize(1, DataSize.Unit.MEGABYTE)));
-        pageSinkProvider = new MemoryPageSinkProvider(pagesStore);
+        NodeManager nodeManager = new NodeManager() {
+            @Override
+            public Set<Node> getAllNodes()
+            {
+                return ImmutableSet.of();
+            }
+
+            @Override
+            public Node getCurrentNode()
+            {
+                return null;
+            }
+
+            @Override
+            public Set<Node> getWorkerNodes()
+            {
+                return ImmutableSet.of();
+            }
+
+            @Override
+            public String getEnvironment()
+            {
+                return null;
+            }
+        };
+        MemoryDbConfig dbConfig = new MemoryDbConfig();
+        MemoryConfigManager memoryConfigManager = new MemoryConfigManager(
+                new H2DaoProvider(dbConfig).get(),
+                new MemoryConfig().setMaxDataPerNode(new DataSize(1, DataSize.Unit.MEGABYTE)),
+                nodeManager
+                );
+        pagesStore = new MemoryPagesStore(memoryConfigManager);
+        pageSinkProvider = new MemoryPageSinkProvider(pagesStore, memoryConfigManager);
     }
 
     @Test
@@ -141,8 +185,10 @@ public class TestMemoryPagesStore
                         "schema",
                         format("table_%d", tableId),
                         tableId, ImmutableList.of(),
-                        ImmutableList.of(HostAddress.fromString("localhost:8080"))),
-                ImmutableSet.copyOf(activeTableIds));
+                        ImmutableList.of(HostAddress.fromString("localhost:8080")),
+                        memoryConfig.getSplitsPerNode()),
+                ImmutableSet.copyOf(activeTableIds),
+                memoryConfig);
     }
 
     private static ConnectorInsertTableHandle createMemoryInsertTableHandle(long tableId, Long[] activeTableIds)
@@ -154,8 +200,10 @@ public class TestMemoryPagesStore
                         format("table_%d", tableId),
                         tableId,
                         ImmutableList.of(),
-                        ImmutableList.of(HostAddress.fromString("localhost:8080"))),
-                ImmutableSet.copyOf(activeTableIds));
+                        ImmutableList.of(HostAddress.fromString("localhost:8080")),
+                        memoryConfig.getSplitsPerNode()),
+                ImmutableSet.copyOf(activeTableIds),
+                memoryConfig);
     }
 
     private static Page createPage()

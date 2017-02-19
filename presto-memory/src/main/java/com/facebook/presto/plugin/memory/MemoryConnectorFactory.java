@@ -14,6 +14,7 @@
 
 package com.facebook.presto.plugin.memory;
 
+import com.facebook.presto.plugin.memory.config.db.ConfigDbModule;
 import com.facebook.presto.spi.ConnectorHandleResolver;
 import com.facebook.presto.spi.connector.Connector;
 import com.facebook.presto.spi.connector.ConnectorContext;
@@ -50,6 +51,7 @@ public class MemoryConnectorFactory
             // A plugin is not required to use Guice; it is just very convenient
             Bootstrap app = new Bootstrap(
                     new JsonModule(),
+                    new ConfigDbModule(),
                     new MemoryModule(connectorId, context.getTypeManager(), context.getNodeManager()));
 
             Injector injector = app

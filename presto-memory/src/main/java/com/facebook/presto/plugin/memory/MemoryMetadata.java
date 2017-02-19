@@ -14,6 +14,8 @@
 
 package com.facebook.presto.plugin.memory;
 
+import com.facebook.presto.plugin.memory.config.MemoryConfigManager;
+import com.facebook.presto.plugin.memory.config.db.MemoryConfigSpec;
 import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.ColumnMetadata;
 import com.facebook.presto.spi.ConnectorInsertTableHandle;
@@ -26,21 +28,27 @@ import com.facebook.presto.spi.ConnectorTableLayoutHandle;
 import com.facebook.presto.spi.ConnectorTableLayoutResult;
 import com.facebook.presto.spi.ConnectorTableMetadata;
 import com.facebook.presto.spi.Constraint;
+import com.facebook.presto.spi.HostAddress;
 import com.facebook.presto.spi.Node;
 import com.facebook.presto.spi.NodeManager;
+import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.SchemaTablePrefix;
 import com.facebook.presto.spi.connector.ConnectorMetadata;
 import com.facebook.presto.spi.connector.ConnectorOutputMetadata;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import io.airlift.log.Logger;
 import io.airlift.slice.Slice;
 
 import javax.annotation.concurrent.ThreadSafe;
 import javax.inject.Inject;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -48,10 +56,11 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
+import static com.facebook.presto.spi.StandardErrorCode.NO_NODES_AVAILABLE;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.collect.Maps.uniqueIndex;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
@@ -60,6 +69,7 @@ import static java.util.stream.Collectors.toMap;
 public class MemoryMetadata
         implements ConnectorMetadata
 {
+    private static final Logger log = Logger.get(MemoryMetadata.class);
     public static final String SCHEMA_NAME = "default";
 
     private final NodeManager nodeManager;
@@ -67,12 +77,14 @@ public class MemoryMetadata
     private final AtomicLong nextTableId = new AtomicLong();
     private final Map<String, Long> tableIds = new ConcurrentHashMap<>();
     private final Map<Long, MemoryTableHandle> tables = new ConcurrentHashMap<>();
+    private final MemoryConfigManager configManager;
 
     @Inject
-    public MemoryMetadata(NodeManager nodeManager, MemoryConnectorId connectorId)
+    public MemoryMetadata(NodeManager nodeManager, MemoryConnectorId connectorId, MemoryConfigManager configManager)
     {
         this.nodeManager = requireNonNull(nodeManager, "nodeManager is null");
         this.connectorId = requireNonNull(connectorId, "connectorId is null").toString();
+        this.configManager = requireNonNull(configManager, "configManager is null");
     }
 
     @Override
@@ -152,7 +164,8 @@ public class MemoryMetadata
                 newTableName.getTableName(),
                 oldTableHandle.getTableId(),
                 oldTableHandle.getColumnHandles(),
-                oldTableHandle.getHosts());
+                oldTableHandle.getHosts(),
+                oldTableHandle.getSplitsPerWorker());
         tableIds.remove(oldTableHandle.getTableName());
         tableIds.put(newTableName.getTableName(), oldTableHandle.getTableId());
         tables.remove(oldTableHandle.getTableId());
@@ -172,16 +185,31 @@ public class MemoryMetadata
         long nextId = nextTableId.getAndIncrement();
         Set<Node> nodes = nodeManager.getRequiredWorkerNodes();
         checkState(!nodes.isEmpty(), "No Memory nodes available");
-
+        Optional<MemoryPartitioningHandle> partitioningHandle = layout
+                .map(ConnectorNewTableLayout::getPartitioning)
+                .map(MemoryPartitioningHandle.class::cast);
+        checkState(partitioningHandle.isPresent(), "Invalid table layout, no partitioning");
+        long splitsPerWorker = partitioningHandle.get().getSplitsPerWorker();
+        List<String> nodeIds = partitioningHandle.get().getBucketToNode();
+        Map<String, Node> nodesById = uniqueIndex(nodes, Node::getNodeIdentifier);
+        ImmutableList.Builder<HostAddress> hosts = ImmutableList.builder();
+        for (String nodeId : nodeIds) {
+            Node node = nodesById.get(nodeId);
+            if (node == null) {
+                throw new PrestoException(NO_NODES_AVAILABLE, "Node for bucket is offline: " + nodeId);
+            }
+            hosts.add(node.getHostAndPort());
+        }
         tableIds.put(tableMetadata.getTable().getTableName(), nextId);
+        MemoryConfigSpec config = configManager.getStaticConfig();
         MemoryTableHandle table = new MemoryTableHandle(
                 connectorId,
                 nextId,
                 tableMetadata,
-                nodes.stream().map(Node::getHostAndPort).collect(Collectors.toList()));
+                hosts.build(),
+                splitsPerWorker);
         tables.put(table.getTableId(), table);
-
-        return new MemoryOutputTableHandle(table, ImmutableSet.copyOf(tableIds.values()));
+        return new MemoryOutputTableHandle(table, ImmutableSet.copyOf(tableIds.values()), config);
     }
 
     @Override
@@ -194,7 +222,10 @@ public class MemoryMetadata
     public synchronized MemoryInsertTableHandle beginInsert(ConnectorSession session, ConnectorTableHandle tableHandle)
     {
         MemoryTableHandle memoryTableHandle = (MemoryTableHandle) tableHandle;
-        return new MemoryInsertTableHandle(memoryTableHandle, ImmutableSet.copyOf(tableIds.values()));
+        // Preserve splitsPerWorker that table was created with
+        MemoryConfigSpec spec = configManager.getStaticConfig();
+        MemoryConfigSpec newSpec = new MemoryConfigSpec(spec.getMaxDataPerNode(), spec.getMaxTableSizePerNode(), memoryTableHandle.getSplitsPerWorker());
+        return new MemoryInsertTableHandle(memoryTableHandle, ImmutableSet.copyOf(tableIds.values()), newSpec);
     }
 
     @Override
@@ -212,7 +243,6 @@ public class MemoryMetadata
     {
         requireNonNull(handle, "handle is null");
         checkArgument(handle instanceof MemoryTableHandle);
-
         MemoryTableLayoutHandle layoutHandle = new MemoryTableLayoutHandle((MemoryTableHandle) handle);
         return ImmutableList.of(new ConnectorTableLayoutResult(getTableLayout(session, layoutHandle), constraint.getSummary()));
     }
@@ -228,5 +258,26 @@ public class MemoryMetadata
                 Optional.empty(),
                 Optional.empty(),
                 ImmutableList.of());
+    }
+
+    @Override
+    public synchronized Optional<ConnectorNewTableLayout> getNewTableLayout(ConnectorSession session, ConnectorTableMetadata tableMetadata)
+    {
+        ImmutableList.Builder<String> partitionColumns = ImmutableList.builder();
+        for (ColumnMetadata column : tableMetadata.getColumns()) {
+            partitionColumns.add(column.getName());
+        }
+        ImmutableList.Builder<String> bucketToNode = ImmutableList.builder();
+        Set<Node> nodes = nodeManager.getRequiredWorkerNodes();
+        int splitsPerNode = configManager.getConfig().getSplitsPerNode();
+        List<Node> nodeList = new ArrayList<>(nodes);
+        Collections.shuffle(nodeList);
+        nodeList.stream().forEach(node -> bucketToNode.add(node.getNodeIdentifier()));
+        return Optional.of(new ConnectorNewTableLayout(new MemoryPartitioningHandle(bucketToNode.build(), splitsPerNode), partitionColumns.build()));
+    }
+
+    public synchronized Map<String, Long> getTableIds()
+    {
+        return ImmutableMap.copyOf(tableIds);
     }
 }
