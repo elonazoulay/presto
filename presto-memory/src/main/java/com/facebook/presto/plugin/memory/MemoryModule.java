@@ -13,7 +13,9 @@
  */
 package com.facebook.presto.plugin.memory;
 
+import com.facebook.presto.plugin.memory.systemtables.MemoryInfoSystemTable;
 import com.facebook.presto.spi.NodeManager;
+import com.facebook.presto.spi.SystemTable;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.spi.type.TypeManager;
 import com.fasterxml.jackson.databind.DeserializationContext;
@@ -21,11 +23,13 @@ import com.fasterxml.jackson.databind.deser.std.FromStringDeserializer;
 import com.google.inject.Binder;
 import com.google.inject.Module;
 import com.google.inject.Scopes;
+import com.google.inject.multibindings.Multibinder;
 
 import javax.inject.Inject;
 
 import static com.facebook.presto.spi.type.TypeSignature.parseTypeSignature;
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.inject.multibindings.Multibinder.newSetBinder;
 import static io.airlift.configuration.ConfigBinder.configBinder;
 import static java.util.Objects.requireNonNull;
 
@@ -48,7 +52,6 @@ public class MemoryModule
     {
         binder.bind(TypeManager.class).toInstance(typeManager);
         binder.bind(NodeManager.class).toInstance(nodeManager);
-
         binder.bind(MemoryConnector.class).in(Scopes.SINGLETON);
         binder.bind(MemoryConnectorId.class).toInstance(new MemoryConnectorId(connectorId));
         binder.bind(MemoryMetadata.class).in(Scopes.SINGLETON);
@@ -57,6 +60,8 @@ public class MemoryModule
         binder.bind(MemoryPageSourceProvider.class).in(Scopes.SINGLETON);
         binder.bind(MemoryPageSinkProvider.class).in(Scopes.SINGLETON);
         configBinder(binder).bindConfig(MemoryConfig.class);
+        Multibinder<SystemTable> tableBinder = newSetBinder(binder, SystemTable.class);
+        tableBinder.addBinding().to(MemoryInfoSystemTable.class).in(Scopes.SINGLETON);
     }
 
     public static final class TypeDeserializer
