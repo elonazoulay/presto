@@ -89,6 +89,13 @@ public class MemoryPagesStore
         return partitionedPages.build();
     }
 
+    public synchronized long getSize(Long tableId)
+    {
+        return pages.get(tableId).stream()
+                .mapToLong(Page::getRetainedSizeInBytes)
+                .sum();
+    }
+
     public synchronized boolean contains(Long tableId)
     {
         return pages.containsKey(tableId);
