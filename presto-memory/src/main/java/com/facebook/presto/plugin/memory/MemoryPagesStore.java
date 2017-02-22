@@ -32,12 +32,14 @@ import java.util.Set;
 
 import static com.facebook.presto.plugin.memory.MemoryErrorCode.MEMORY_LIMIT_EXCEEDED;
 import static com.facebook.presto.plugin.memory.MemoryErrorCode.MISSING_DATA;
+import static com.facebook.presto.plugin.memory.MemoryErrorCode.TABLE_SIZE_PER_NODE_EXCEEDED;
 import static java.lang.String.format;
 
 @ThreadSafe
 public class MemoryPagesStore
 {
     private final long maxBytes;
+    private final long maxBytesPerTable;
 
     @GuardedBy("this")
     private long currentBytes = 0;
@@ -46,14 +48,20 @@ public class MemoryPagesStore
     public MemoryPagesStore(MemoryConfig config)
     {
         this.maxBytes = config.getMaxDataPerNode().toBytes();
+        this.maxBytesPerTable = config.getMaxDataPerTablePerNode().toBytes();
     }
 
+    @GuardedBy("this")
     private final Map<Long, List<Page>> pages = new HashMap<>();
+
+    @GuardedBy("this")
+    private final Map<Long, Long> tableSizes = new HashMap<>();
 
     public synchronized void initialize(long tableId)
     {
         if (!pages.containsKey(tableId)) {
             pages.put(tableId, new ArrayList<>());
+            tableSizes.put(tableId, 0L);
         }
     }
 
@@ -64,11 +72,15 @@ public class MemoryPagesStore
         }
 
         long newSize = currentBytes + page.getRetainedSizeInBytes();
+        long newTableSize = tableSizes.get(tableId) + page.getRetainedSizeInBytes();
         if (maxBytes < newSize) {
             throw new PrestoException(MEMORY_LIMIT_EXCEEDED, format("Memory limit [%d] for memory connector exceeded", maxBytes));
         }
+        if (maxBytesPerTable < newTableSize) {
+            throw new PrestoException(TABLE_SIZE_PER_NODE_EXCEEDED, format("Table size [%d] bytes per node exceeded", maxBytesPerTable));
+        }
         currentBytes = newSize;
-
+        tableSizes.put(tableId, newSize);
         List<Page> tablePages = pages.get(tableId);
         tablePages.add(page);
     }
@@ -91,9 +103,7 @@ public class MemoryPagesStore
 
     public synchronized long getSize(Long tableId)
     {
-        return pages.get(tableId).stream()
-                .mapToLong(Page::getRetainedSizeInBytes)
-                .sum();
+        return tableSizes.get(tableId);
     }
 
     public synchronized boolean contains(Long tableId)
