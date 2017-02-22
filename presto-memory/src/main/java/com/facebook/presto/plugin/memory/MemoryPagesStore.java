@@ -13,10 +13,12 @@
  */
 package com.facebook.presto.plugin.memory;
 
+import com.facebook.presto.plugin.memory.config.MemoryConfigManager;
 import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.block.Block;
 import com.google.common.collect.ImmutableList;
+import io.airlift.log.Logger;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -38,17 +40,16 @@ import static java.lang.String.format;
 @ThreadSafe
 public class MemoryPagesStore
 {
-    private final long maxBytes;
-    private final long maxBytesPerTable;
+    private static final Logger log = Logger.get(MemoryPagesStore.class);
+    private final MemoryConfigManager configManager;
 
     @GuardedBy("this")
     private long currentBytes = 0;
 
     @Inject
-    public MemoryPagesStore(MemoryConfig config)
+    public MemoryPagesStore(MemoryConfigManager configManager)
     {
-        this.maxBytes = config.getMaxDataPerNode().toBytes();
-        this.maxBytesPerTable = config.getMaxDataPerTablePerNode().toBytes();
+        this.configManager = configManager;
     }
 
     @GuardedBy("this")
@@ -56,6 +57,16 @@ public class MemoryPagesStore
 
     @GuardedBy("this")
     private final Map<Long, Long> tableSizes = new HashMap<>();
+
+    private long getMaxBytes()
+    {
+        return configManager.getConfig().getMaxDataPerNode().toBytes();
+    }
+
+    private long getMaxBytesPerTable()
+    {
+        return configManager.getConfig().getMaxTableSizePerNode().toBytes();
+    }
 
     public synchronized void initialize(long tableId)
     {
@@ -73,9 +84,11 @@ public class MemoryPagesStore
 
         long newSize = currentBytes + page.getRetainedSizeInBytes();
         long newTableSize = tableSizes.get(tableId) + page.getRetainedSizeInBytes();
+        long maxBytes = getMaxBytes();
         if (maxBytes < newSize) {
             throw new PrestoException(MEMORY_LIMIT_EXCEEDED, format("Memory limit [%d] for memory connector exceeded", maxBytes));
         }
+        long maxBytesPerTable = getMaxBytesPerTable();
         if (maxBytesPerTable < newTableSize) {
             throw new PrestoException(TABLE_SIZE_PER_NODE_EXCEEDED, format("Table size [%d] bytes per node exceeded", maxBytesPerTable));
         }
@@ -103,7 +116,8 @@ public class MemoryPagesStore
 
     public synchronized long getSize(Long tableId)
     {
-        return tableSizes.get(tableId);
+
+        return tableSizes.getOrDefault(tableId, 0L);
     }
 
     public synchronized boolean contains(Long tableId)

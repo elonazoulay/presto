@@ -18,12 +18,12 @@ import com.facebook.presto.plugin.memory.MemoryMetadata;
 import com.facebook.presto.plugin.memory.MemoryPagesStore;
 import com.facebook.presto.plugin.memory.MemoryTableHandle;
 import com.facebook.presto.spi.ColumnMetadata;
-import com.facebook.presto.spi.ConnectorPageSource;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorTableMetadata;
-import com.facebook.presto.spi.FixedPageSource;
+import com.facebook.presto.spi.InMemoryRecordSet;
 import com.facebook.presto.spi.NodeManager;
 import com.facebook.presto.spi.Page;
+import com.facebook.presto.spi.RecordCursor;
 import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.SystemTable;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
@@ -82,10 +82,34 @@ public class MemoryInfoSystemTable
         return tableMetadata;
     }
 
+    /*
     @Override
     public ConnectorPageSource pageSource(ConnectorTransactionHandle transactionHandle, ConnectorSession session, TupleDomain<Integer> constraint)
     {
         return new FixedPageSource(getTableSizes());
+    }
+    */
+
+    @Override
+    public RecordCursor cursor(ConnectorTransactionHandle transactionHandle, ConnectorSession session, TupleDomain<Integer> constraint)
+    {
+        InMemoryRecordSet.Builder systemTable = InMemoryRecordSet.builder(tableMetadata);
+        List<SchemaTableName> tableNames = metadata.listTables(null, MemoryMetadata.SCHEMA_NAME);
+        for (SchemaTableName table : tableNames) {
+            MemoryTableHandle tableHandle = (MemoryTableHandle) metadata.getTableHandle(null, table);
+            long tableId = tableHandle.getTableId();
+            Long size = pagesStore.getSize(tableId);
+            if (size == null) {
+                continue;
+            }
+            systemTable.addRow(
+                    nodeId,
+                    table.getSchemaName(),
+                    table.getTableName(),
+                    size
+            );
+        }
+        return systemTable.build().cursor();
     }
 
     private List<Page> getTableSizes()
