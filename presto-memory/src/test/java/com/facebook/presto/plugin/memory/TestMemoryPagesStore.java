@@ -14,11 +14,16 @@
 
 package com.facebook.presto.plugin.memory;
 
+import com.facebook.presto.plugin.memory.config.MemoryConfigManager;
+import com.facebook.presto.plugin.memory.config.db.H2DaoProvider;
+import com.facebook.presto.plugin.memory.config.db.MemoryDbConfig;
 import com.facebook.presto.spi.ConnectorInsertTableHandle;
 import com.facebook.presto.spi.ConnectorOutputTableHandle;
 import com.facebook.presto.spi.ConnectorPageSink;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.HostAddress;
+import com.facebook.presto.spi.Node;
+import com.facebook.presto.spi.NodeManager;
 import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.block.BlockBuilder;
@@ -28,6 +33,8 @@ import com.google.common.collect.ImmutableSet;
 import io.airlift.units.DataSize;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
+
+import java.util.Set;
 
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static java.lang.String.format;
@@ -46,7 +53,38 @@ public class TestMemoryPagesStore
     @BeforeMethod
     public void setUp()
     {
-        pagesStore = new MemoryPagesStore(new MemoryConfig().setMaxDataPerNode(new DataSize(1, DataSize.Unit.MEGABYTE)));
+        NodeManager nodeManager = new NodeManager() {
+            @Override
+            public Set<Node> getAllNodes()
+            {
+                return ImmutableSet.of();
+            }
+
+            @Override
+            public Node getCurrentNode()
+            {
+                return null;
+            }
+
+            @Override
+            public Set<Node> getWorkerNodes()
+            {
+                return ImmutableSet.of();
+            }
+
+            @Override
+            public String getEnvironment()
+            {
+                return null;
+            }
+        };
+
+        MemoryConfigManager memoryConfigManager = new MemoryConfigManager(
+                new H2DaoProvider(new MemoryDbConfig()).get(),
+                new MemoryConfig().setMaxDataPerNode(new DataSize(1, DataSize.Unit.MEGABYTE)),
+                nodeManager
+                );
+        pagesStore = new MemoryPagesStore(memoryConfigManager);
         pageSinkProvider = new MemoryPageSinkProvider(pagesStore);
     }
 

@@ -35,6 +35,7 @@ import com.facebook.presto.spi.connector.ConnectorOutputMetadata;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import io.airlift.log.Logger;
 import io.airlift.slice.Slice;
 
 import javax.annotation.concurrent.ThreadSafe;
@@ -60,6 +61,7 @@ import static java.util.stream.Collectors.toMap;
 public class MemoryMetadata
         implements ConnectorMetadata
 {
+    private static final Logger log = Logger.get(MemoryMetadata.class);
     public static final String SCHEMA_NAME = "default";
 
     private final NodeManager nodeManager;
@@ -172,7 +174,6 @@ public class MemoryMetadata
         long nextId = nextTableId.getAndIncrement();
         Set<Node> nodes = nodeManager.getRequiredWorkerNodes();
         checkState(!nodes.isEmpty(), "No Memory nodes available");
-
         tableIds.put(tableMetadata.getTable().getTableName(), nextId);
         MemoryTableHandle table = new MemoryTableHandle(
                 connectorId,
@@ -212,7 +213,6 @@ public class MemoryMetadata
     {
         requireNonNull(handle, "handle is null");
         checkArgument(handle instanceof MemoryTableHandle);
-
         MemoryTableLayoutHandle layoutHandle = new MemoryTableLayoutHandle((MemoryTableHandle) handle);
         return ImmutableList.of(new ConnectorTableLayoutResult(getTableLayout(session, layoutHandle), constraint.getSummary()));
     }

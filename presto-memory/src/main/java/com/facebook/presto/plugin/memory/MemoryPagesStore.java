@@ -13,10 +13,12 @@
  */
 package com.facebook.presto.plugin.memory;
 
+import com.facebook.presto.plugin.memory.config.MemoryConfigManager;
 import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.block.Block;
 import com.google.common.collect.ImmutableList;
+import io.airlift.log.Logger;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -38,17 +40,16 @@ import static java.lang.String.format;
 @ThreadSafe
 public class MemoryPagesStore
 {
-    private final long maxBytes;
-    private final long maxBytesPerTable;
+    private static final Logger log = Logger.get(MemoryPagesStore.class);
+    private final MemoryConfigManager configManager;
 
     @GuardedBy("this")
     private long currentBytes = 0;
 
     @Inject
-    public MemoryPagesStore(MemoryConfig config)
+    public MemoryPagesStore(MemoryConfigManager configManager)
     {
-        this.maxBytes = config.getMaxDataPerNode().toBytes();
-        this.maxBytesPerTable = config.getMaxDataPerTablePerNode().toBytes();
+        this.configManager = configManager;
     }
 
     @GuardedBy("this")
@@ -57,10 +58,28 @@ public class MemoryPagesStore
     @GuardedBy("this")
     private final Map<Long, Long> tableSizes = new HashMap<>();
 
-    public synchronized void initialize(long tableId)
+    @GuardedBy("this")
+    private final Map<Long, String> tableNames = new HashMap<>();
+
+    @GuardedBy("this")
+    private final Map<String, Long> tableIds = new HashMap<>();
+
+    private long getMaxBytes()
+    {
+        return configManager.getConfig().getMaxDataPerNode().toBytes();
+    }
+
+    private long getMaxBytesPerTable()
+    {
+        return configManager.getConfig().getMaxTableSizePerNode().toBytes();
+    }
+
+    public synchronized void initialize(String tableName, long tableId)
     {
         if (!pages.containsKey(tableId)) {
             pages.put(tableId, new ArrayList<>());
+            tableIds.put(tableName, tableId);
+            tableNames.put(tableId, tableName);
             tableSizes.put(tableId, 0L);
         }
     }
@@ -73,9 +92,11 @@ public class MemoryPagesStore
 
         long newSize = currentBytes + page.getRetainedSizeInBytes();
         long newTableSize = tableSizes.get(tableId) + page.getRetainedSizeInBytes();
+        long maxBytes = getMaxBytes();
         if (maxBytes < newSize) {
             throw new PrestoException(MEMORY_LIMIT_EXCEEDED, format("Memory limit [%d] for memory connector exceeded", maxBytes));
         }
+        long maxBytesPerTable = getMaxBytesPerTable();
         if (maxBytesPerTable < newTableSize) {
             throw new PrestoException(TABLE_SIZE_PER_NODE_EXCEEDED, format("Table size [%d] bytes per node exceeded", maxBytesPerTable));
         }
@@ -101,9 +122,15 @@ public class MemoryPagesStore
         return partitionedPages.build();
     }
 
-    public synchronized long getSize(Long tableId)
+    public synchronized List<String> listTables()
     {
-        return tableSizes.get(tableId);
+        return ImmutableList.copyOf(tableIds.keySet());
+    }
+
+    public synchronized long getSize(String tableName)
+    {
+        long tableId = tableIds.get(tableName);
+        return tableSizes.getOrDefault(tableId, 0L);
     }
 
     public synchronized boolean contains(Long tableId)
@@ -135,6 +162,9 @@ public class MemoryPagesStore
                     currentBytes -= removedPage.getRetainedSizeInBytes();
                 }
                 tablePages.remove();
+                tableSizes.remove(tableId);
+                String tableName = tableNames.remove(tableId);
+                tableIds.remove(tableName);
             }
         }
     }
