@@ -16,14 +16,12 @@ package com.facebook.presto.plugin.memory.systemtables;
 
 import com.facebook.presto.plugin.memory.MemoryMetadata;
 import com.facebook.presto.plugin.memory.MemoryPagesStore;
-import com.facebook.presto.plugin.memory.MemoryTableHandle;
 import com.facebook.presto.spi.ColumnMetadata;
-import com.facebook.presto.spi.ConnectorPageSource;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorTableMetadata;
-import com.facebook.presto.spi.FixedPageSource;
+import com.facebook.presto.spi.InMemoryRecordSet;
 import com.facebook.presto.spi.NodeManager;
-import com.facebook.presto.spi.Page;
+import com.facebook.presto.spi.RecordCursor;
 import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.SystemTable;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
@@ -37,9 +35,7 @@ import java.util.List;
 import static com.facebook.presto.spi.SystemTable.Distribution.ALL_NODES;
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.facebook.presto.spi.type.VarcharType.VARCHAR;
-import static io.airlift.slice.Slices.utf8Slice;
 import static java.util.Objects.requireNonNull;
-import static java.util.stream.Collectors.toList;
 
 public class MemoryInfoSystemTable
     implements SystemTable
@@ -47,22 +43,18 @@ public class MemoryInfoSystemTable
     private static final String TABLE_NAME = "table_name";
     private static final String SCHEMA_NAME = "table_schema";
     private final ConnectorTableMetadata tableMetadata;
-    private final MemoryMetadata metadata;
     private final MemoryPagesStore pagesStore;
-    private final NodeManager nodeManager;
     private final String nodeId;
 
     @Inject
-    public MemoryInfoSystemTable(MemoryMetadata metadata, MemoryPagesStore pagesStore, NodeManager nodeManager)
+    public MemoryInfoSystemTable(MemoryPagesStore pagesStore, NodeManager nodeManager)
     {
-        this.metadata = requireNonNull(metadata, "metadata is null");
+        this.nodeId = requireNonNull(nodeManager, "nodeManager is null").getCurrentNode().getNodeIdentifier();
         this.pagesStore = requireNonNull(pagesStore, "pagesStore is null");
-        this.nodeManager = requireNonNull(nodeManager, "nodeManager is null");
-        this.nodeId = nodeManager.getCurrentNode().getNodeIdentifier();
         this.tableMetadata = new ConnectorTableMetadata(
                 new SchemaTableName("system", "table_stats"),
                 ImmutableList.of(
-                        new ColumnMetadata("node_name", VARCHAR),
+                        new ColumnMetadata("node_id", VARCHAR),
                         new ColumnMetadata(SCHEMA_NAME, VARCHAR),
                         new ColumnMetadata(TABLE_NAME, VARCHAR),
                         new ColumnMetadata("size", BIGINT)
@@ -83,30 +75,22 @@ public class MemoryInfoSystemTable
     }
 
     @Override
-    public ConnectorPageSource pageSource(ConnectorTransactionHandle transactionHandle, ConnectorSession session, TupleDomain<Integer> constraint)
+    public RecordCursor cursor(ConnectorTransactionHandle transactionHandle, ConnectorSession session, TupleDomain<Integer> constraint)
     {
-        return new FixedPageSource(getTableSizes());
-    }
-
-    private List<Page> getTableSizes()
-    {
-        PageListBuilder pageBuilder = new PageListBuilder(tableMetadata.getColumns().stream()
-                .map(ColumnMetadata::getType)
-                .collect(toList()));
-        List<SchemaTableName> tableNames = metadata.listTables(null, MemoryMetadata.SCHEMA_NAME);
-        for (SchemaTableName table : tableNames) {
-            MemoryTableHandle tableHandle = (MemoryTableHandle) metadata.getTableHandle(null, table);
-            long tableId = tableHandle.getTableId();
-            Long size = pagesStore.getSize(tableId);
+        InMemoryRecordSet.Builder systemTable = InMemoryRecordSet.builder(tableMetadata);
+        List<String> tableNames = pagesStore.listTables();
+        for (String table : tableNames) {
+            Long size = pagesStore.getSize(table);
             if (size == null) {
-                continue;
+                size = 0L;
             }
-            pageBuilder.beginRow();
-            VARCHAR.writeSlice(pageBuilder.nextBlockBuilder(), utf8Slice(nodeId));
-            VARCHAR.writeSlice(pageBuilder.nextBlockBuilder(), utf8Slice(table.getSchemaName()));
-            VARCHAR.writeSlice(pageBuilder.nextBlockBuilder(), utf8Slice(table.getTableName()));
-            BIGINT.writeLong(pageBuilder.nextBlockBuilder(), size);
+            systemTable.addRow(
+                    nodeId,
+                    MemoryMetadata.SCHEMA_NAME,
+                    table,
+                    size
+            );
         }
-        return pageBuilder.build();
+        return systemTable.build().cursor();
     }
 }

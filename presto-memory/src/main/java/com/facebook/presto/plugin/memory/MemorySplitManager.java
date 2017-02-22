@@ -14,6 +14,7 @@
 
 package com.facebook.presto.plugin.memory;
 
+import com.facebook.presto.plugin.memory.config.MemoryConfigManager;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorSplit;
 import com.facebook.presto.spi.ConnectorSplitSource;
@@ -31,12 +32,17 @@ import java.util.List;
 public final class MemorySplitManager
         implements ConnectorSplitManager
 {
-    private final int splitsPerNode;
+    private final MemoryConfigManager configManager;
 
     @Inject
-    public MemorySplitManager(MemoryConfig config)
+    public MemorySplitManager(MemoryConfigManager configManager)
     {
-        this.splitsPerNode = config.getSplitsPerNode();
+        this.configManager = configManager;
+    }
+
+    private int getSplitsPerNode()
+    {
+        return configManager.getConfig().getSplitsPerNode();
     }
 
     @Override
@@ -47,6 +53,7 @@ public final class MemorySplitManager
         List<HostAddress> hosts = layout.getTable().getHosts();
 
         ImmutableList.Builder<ConnectorSplit> splits = ImmutableList.builder();
+        int splitsPerNode = getSplitsPerNode();
         for (HostAddress host : hosts) {
             for (int i = 0; i < splitsPerNode; i++) {
                 splits.add(

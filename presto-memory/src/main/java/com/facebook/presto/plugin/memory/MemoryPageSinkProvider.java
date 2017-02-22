@@ -51,9 +51,8 @@ public class MemoryPageSinkProvider
         MemoryTableHandle tableHandle = memoryOutputTableHandle.getTable();
         long tableId = tableHandle.getTableId();
         checkState(memoryOutputTableHandle.getActiveTableIds().contains(tableId));
-
         pagesStore.cleanUp(memoryOutputTableHandle.getActiveTableIds());
-        pagesStore.initialize(tableId);
+        pagesStore.initialize(tableHandle.getTableName(), tableId);
         return new MemoryPageSink(pagesStore, tableId);
     }
 
@@ -64,7 +63,6 @@ public class MemoryPageSinkProvider
         MemoryTableHandle tableHandle = memoryInsertTableHandle.getTable();
         long tableId = tableHandle.getTableId();
         checkState(memoryInsertTableHandle.getActiveTableIds().contains(tableId));
-
         pagesStore.cleanUp(memoryInsertTableHandle.getActiveTableIds());
         return new MemoryPageSink(pagesStore, tableId);
     }

@@ -21,6 +21,7 @@ import com.facebook.presto.spi.connector.ConnectorPageSinkProvider;
 import com.facebook.presto.spi.connector.ConnectorPageSourceProvider;
 import com.facebook.presto.spi.connector.ConnectorSplitManager;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
+import com.facebook.presto.spi.procedure.Procedure;
 import com.facebook.presto.spi.transaction.IsolationLevel;
 
 import javax.inject.Inject;
@@ -37,6 +38,7 @@ public class MemoryConnector
     private final MemoryPageSourceProvider pageSourceProvider;
     private final MemoryPageSinkProvider pageSinkProvider;
     private final Set<SystemTable> systemTables;
+    private final Set<Procedure> procedures;
 
     @Inject
     public MemoryConnector(
@@ -44,13 +46,15 @@ public class MemoryConnector
             MemorySplitManager splitManager,
             MemoryPageSourceProvider pageSourceProvider,
             MemoryPageSinkProvider pageSinkProvider,
-            Set<SystemTable> systemTables)
+            Set<SystemTable> systemTables,
+            Set<Procedure> procedures)
     {
         this.metadata = metadata;
         this.splitManager = splitManager;
         this.pageSourceProvider = pageSourceProvider;
         this.pageSinkProvider = pageSinkProvider;
         this.systemTables = requireNonNull(systemTables, "systemTables is null");
+        this.procedures = requireNonNull(procedures);
     }
 
     @Override
@@ -87,5 +91,11 @@ public class MemoryConnector
     public Set<SystemTable> getSystemTables()
     {
         return systemTables;
+    }
+
+    @Override
+    public Set<Procedure> getProcedures()
+    {
+        return procedures;
     }
 }
