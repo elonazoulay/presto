@@ -14,6 +14,7 @@
 
 package com.facebook.presto.plugin.memory;
 
+import com.facebook.presto.plugin.memory.config.db.MemoryConfigSpec;
 import com.facebook.presto.spi.ConnectorInsertTableHandle;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -28,14 +29,17 @@ public class MemoryInsertTableHandle
 {
     private final MemoryTableHandle table;
     private Set<Long> activeTableIds;
+    private final MemoryConfigSpec config;
 
     @JsonCreator
     public MemoryInsertTableHandle(
             @JsonProperty("table") MemoryTableHandle table,
-            @JsonProperty("activeTableIds") Set<Long> activeTableIds)
+            @JsonProperty("activeTableIds") Set<Long> activeTableIds,
+            @JsonProperty("memoryConfig") MemoryConfigSpec config)
     {
         this.table = requireNonNull(table, "table is null");
         this.activeTableIds = requireNonNull(activeTableIds, "activeTableIds is null");
+        this.config = requireNonNull(config, "config is null");
     }
 
     @JsonProperty
@@ -48,6 +52,12 @@ public class MemoryInsertTableHandle
     public Set<Long> getActiveTableIds()
     {
         return activeTableIds;
+    }
+
+    @JsonProperty
+    public MemoryConfigSpec getMemoryConfig()
+    {
+        return config;
     }
 
     @Override

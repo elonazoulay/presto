@@ -16,6 +16,7 @@ package com.facebook.presto.plugin.memory;
 
 import com.facebook.presto.plugin.memory.config.MemoryConfigManager;
 import com.facebook.presto.plugin.memory.config.db.H2DaoProvider;
+import com.facebook.presto.plugin.memory.config.db.MemoryConfigSpec;
 import com.facebook.presto.plugin.memory.config.db.MemoryDbConfig;
 import com.facebook.presto.spi.ConnectorInsertTableHandle;
 import com.facebook.presto.spi.ConnectorOutputTableHandle;
@@ -46,6 +47,11 @@ import static org.testng.Assert.assertTrue;
 public class TestMemoryPagesStore
 {
     public static final ConnectorSession SESSION = new TestingConnectorSession(ImmutableList.of());
+    public static final MemoryConfigSpec memoryConfig = new MemoryConfigSpec(
+            128L * 1024 * 1024,
+            32 * 1024 * 1024,
+            Runtime.getRuntime().availableProcessors()
+    );
 
     private MemoryPagesStore pagesStore;
     private MemoryPageSinkProvider pageSinkProvider;
@@ -78,14 +84,14 @@ public class TestMemoryPagesStore
                 return null;
             }
         };
-
+        MemoryDbConfig dbConfig = new MemoryDbConfig();
         MemoryConfigManager memoryConfigManager = new MemoryConfigManager(
-                new H2DaoProvider(new MemoryDbConfig()).get(),
+                new H2DaoProvider(dbConfig).get(),
                 new MemoryConfig().setMaxDataPerNode(new DataSize(1, DataSize.Unit.MEGABYTE)),
                 nodeManager
                 );
         pagesStore = new MemoryPagesStore(memoryConfigManager);
-        pageSinkProvider = new MemoryPageSinkProvider(pagesStore);
+        pageSinkProvider = new MemoryPageSinkProvider(pagesStore, memoryConfigManager);
     }
 
     @Test
@@ -180,7 +186,8 @@ public class TestMemoryPagesStore
                         format("table_%d", tableId),
                         tableId, ImmutableList.of(),
                         ImmutableList.of(HostAddress.fromString("localhost:8080"))),
-                ImmutableSet.copyOf(activeTableIds));
+                ImmutableSet.copyOf(activeTableIds),
+                memoryConfig);
     }
 
     private static ConnectorInsertTableHandle createMemoryInsertTableHandle(long tableId, Long[] activeTableIds)
@@ -193,7 +200,8 @@ public class TestMemoryPagesStore
                         tableId,
                         ImmutableList.of(),
                         ImmutableList.of(HostAddress.fromString("localhost:8080"))),
-                ImmutableSet.copyOf(activeTableIds));
+                ImmutableSet.copyOf(activeTableIds),
+                memoryConfig);
     }
 
     private static Page createPage()

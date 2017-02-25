@@ -14,6 +14,8 @@
 
 package com.facebook.presto.plugin.memory;
 
+import com.facebook.presto.plugin.memory.config.MemoryConfigManager;
+import com.facebook.presto.plugin.memory.config.db.MemoryConfigSpec;
 import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.ColumnMetadata;
 import com.facebook.presto.spi.ConnectorInsertTableHandle;
@@ -69,12 +71,14 @@ public class MemoryMetadata
     private final AtomicLong nextTableId = new AtomicLong();
     private final Map<String, Long> tableIds = new ConcurrentHashMap<>();
     private final Map<Long, MemoryTableHandle> tables = new ConcurrentHashMap<>();
+    private final MemoryConfigManager configManager;
 
     @Inject
-    public MemoryMetadata(NodeManager nodeManager, MemoryConnectorId connectorId)
+    public MemoryMetadata(NodeManager nodeManager, MemoryConnectorId connectorId, MemoryConfigManager configManager)
     {
         this.nodeManager = requireNonNull(nodeManager, "nodeManager is null");
         this.connectorId = requireNonNull(connectorId, "connectorId is null").toString();
+        this.configManager = requireNonNull(configManager, "configManager is null");
     }
 
     @Override
@@ -181,8 +185,8 @@ public class MemoryMetadata
                 tableMetadata,
                 nodes.stream().map(Node::getHostAndPort).collect(Collectors.toList()));
         tables.put(table.getTableId(), table);
-
-        return new MemoryOutputTableHandle(table, ImmutableSet.copyOf(tableIds.values()));
+        MemoryConfigSpec config = configManager.getStaticConfig();
+        return new MemoryOutputTableHandle(table, ImmutableSet.copyOf(tableIds.values()), config);
     }
 
     @Override
@@ -195,7 +199,7 @@ public class MemoryMetadata
     public synchronized MemoryInsertTableHandle beginInsert(ConnectorSession session, ConnectorTableHandle tableHandle)
     {
         MemoryTableHandle memoryTableHandle = (MemoryTableHandle) tableHandle;
-        return new MemoryInsertTableHandle(memoryTableHandle, ImmutableSet.copyOf(tableIds.values()));
+        return new MemoryInsertTableHandle(memoryTableHandle, ImmutableSet.copyOf(tableIds.values()), configManager.getStaticConfig());
     }
 
     @Override
