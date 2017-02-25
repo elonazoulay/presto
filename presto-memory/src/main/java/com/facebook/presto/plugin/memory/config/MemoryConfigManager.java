@@ -15,9 +15,11 @@ package com.facebook.presto.plugin.memory.config;
 
 import com.facebook.presto.plugin.memory.MemoryConfig;
 import com.facebook.presto.plugin.memory.config.db.MemoryConfigDao;
+import com.facebook.presto.plugin.memory.config.db.MemoryConfigSpec;
 import com.facebook.presto.spi.NodeManager;
 import com.google.common.base.Throwables;
 import io.airlift.log.Logger;
+import io.airlift.units.DataSize;
 
 import javax.inject.Inject;
 
@@ -25,20 +27,22 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.google.common.collect.Iterables.getOnlyElement;
+import static io.airlift.units.DataSize.Unit.BYTE;
+import static java.lang.Math.toIntExact;
 
 public class MemoryConfigManager
 {
     private static final Logger log = Logger.get(MemoryConfigManager.class);
     private final AtomicReference<MemoryConfig> config = new AtomicReference<>();
     private final MemoryConfigDao dao;
-    private final boolean isCoordinator;
+    private final boolean canWrite;
 
     @Inject
     public MemoryConfigManager(MemoryConfigDao dao, MemoryConfig initialConfig, NodeManager nodeManager)
     {
         this.dao = dao;
         config.set(initialConfig);
-        this.isCoordinator = nodeManager.getCurrentNode().isCoordinator();
+        canWrite = nodeManager.getCurrentNode().isCoordinator();
         dao.createConfigTable();
         load();
     }
@@ -48,16 +52,36 @@ public class MemoryConfigManager
         return config.get();
     }
 
+    public MemoryConfigSpec getStaticConfig()
+    {
+        MemoryConfig config = this.config.get();
+        return new MemoryConfigSpec(config.getMaxDataPerNode().toBytes(),
+                config.getMaxTableSizePerNode().toBytes(),
+                config.getSplitsPerNode());
+    }
+
+    public void setFromConfig(MemoryConfigSpec config)
+    {
+        MemoryConfig newConfig = new MemoryConfig()
+                .setMaxDataPerNode(new DataSize(config.getMaxDataPerNode(), BYTE))
+                .setMaxTableSizePerNode(new DataSize(config.getMaxTableSizePerNode(), BYTE))
+                .setSplitsPerNode(toIntExact(config.getSplitsPerNode()));
+
+        this.config.set(newConfig);
+    }
+
     private synchronized void load()
     {
         try {
             List<MemoryConfig> memoryConfig = dao.getMemoryConfig();
-            if (memoryConfig.isEmpty() /*&& isCoordinator*/) {
-                MemoryConfig currentConfig = config.get();
-                dao.insertMemoryConfig(
-                        currentConfig.getMaxDataPerNode().toBytes(),
-                        currentConfig.getMaxTableSizePerNode().toBytes(),
-                        currentConfig.getSplitsPerNode());
+            if (memoryConfig.isEmpty()) {
+                if (canWrite) {
+                    MemoryConfig currentConfig = config.get();
+                    dao.insertMemoryConfig(
+                            currentConfig.getMaxDataPerNode().toBytes(),
+                            currentConfig.getMaxTableSizePerNode().toBytes(),
+                            currentConfig.getSplitsPerNode());
+                }
             }
             else {
                 config.set(getOnlyElement(memoryConfig));
@@ -71,8 +95,9 @@ public class MemoryConfigManager
 
     public synchronized void setMaxDataPerNode(long maxDataSizePerNode)
     {
+        config.set(copyMemoryConfig().setMaxDataPerNode(new DataSize(maxDataSizePerNode, BYTE)));
         try {
-            if (isCoordinator) {
+            if (canWrite) {
                 dao.updateMaxDataPerNode(maxDataSizePerNode);
             }
         }
@@ -80,13 +105,13 @@ public class MemoryConfigManager
             log.error("Failed to update max data size per node: %s", e);
             Throwables.propagate(e);
         }
-        load();
     }
 
-    public void setMaxTableSizePerNode(long maxTableSizePerNode)
+    public synchronized void setMaxTableSizePerNode(long maxTableSizePerNode)
     {
+        config.set(copyMemoryConfig().setMaxTableSizePerNode(new DataSize(maxTableSizePerNode, BYTE)));
         try {
-            if (isCoordinator) {
+            if (canWrite) {
                 dao.updateMaxTableSizePerNode(maxTableSizePerNode);
             }
         }
@@ -94,13 +119,13 @@ public class MemoryConfigManager
             log.error("Failed to update max table size per node: %s", e);
             Throwables.propagate(e);
         }
-        load();
     }
 
-    public void setSplitsPerNode(int splitsPerNode)
+    public synchronized void setSplitsPerNode(int splitsPerNode)
     {
+        config.set(copyMemoryConfig().setSplitsPerNode(splitsPerNode));
         try {
-            if (isCoordinator) {
+            if (canWrite) {
                 dao.updateSplitsPerNode(splitsPerNode);
             }
         }
@@ -108,6 +133,14 @@ public class MemoryConfigManager
             log.error("Failed to update splits per node: %s", e);
             Throwables.propagate(e);
         }
-        load();
+    }
+
+    private MemoryConfig copyMemoryConfig()
+    {
+        MemoryConfig newConfig = new MemoryConfig();
+        MemoryConfig currentConfig = config.get();
+        return newConfig.setMaxDataPerNode(currentConfig.getMaxDataPerNode())
+                .setMaxTableSizePerNode(currentConfig.getMaxTableSizePerNode())
+                .setSplitsPerNode(currentConfig.getSplitsPerNode());
     }
 }

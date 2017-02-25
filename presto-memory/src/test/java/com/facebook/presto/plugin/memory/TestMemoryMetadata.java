@@ -14,17 +14,25 @@
 
 package com.facebook.presto.plugin.memory;
 
+import com.facebook.presto.plugin.memory.config.MemoryConfigManager;
+import com.facebook.presto.plugin.memory.config.db.H2DaoProvider;
+import com.facebook.presto.plugin.memory.config.db.MemoryDbConfig;
 import com.facebook.presto.spi.ConnectorOutputTableHandle;
 import com.facebook.presto.spi.ConnectorTableMetadata;
+import com.facebook.presto.spi.Node;
+import com.facebook.presto.spi.NodeManager;
 import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.testing.TestingNodeManager;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import io.airlift.units.DataSize;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static com.facebook.presto.testing.TestingConnectorSession.SESSION;
 import static org.testng.Assert.assertEquals;
@@ -39,7 +47,38 @@ public class TestMemoryMetadata
     @BeforeMethod
     public void setUp()
     {
-        metadata = new MemoryMetadata(new TestingNodeManager(), new MemoryConnectorId("test"));
+        NodeManager nodeManager = new NodeManager() {
+            @Override
+            public Set<Node> getAllNodes()
+            {
+                return ImmutableSet.of();
+            }
+
+            @Override
+            public Node getCurrentNode()
+            {
+                return null;
+            }
+
+            @Override
+            public Set<Node> getWorkerNodes()
+            {
+                return ImmutableSet.of();
+            }
+
+            @Override
+            public String getEnvironment()
+            {
+                return null;
+            }
+        };
+        MemoryDbConfig dbConfig = new MemoryDbConfig();
+        MemoryConfigManager memoryConfigManager = new MemoryConfigManager(
+                new H2DaoProvider(dbConfig).get(),
+                new MemoryConfig().setMaxDataPerNode(new DataSize(1, DataSize.Unit.MEGABYTE)),
+                nodeManager
+        );
+        metadata = new MemoryMetadata(new TestingNodeManager(), new MemoryConnectorId("test"), memoryConfigManager);
     }
 
     @Test

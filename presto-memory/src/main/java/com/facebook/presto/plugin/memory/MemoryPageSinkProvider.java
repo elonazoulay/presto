@@ -14,6 +14,7 @@
 
 package com.facebook.presto.plugin.memory;
 
+import com.facebook.presto.plugin.memory.config.MemoryConfigManager;
 import com.facebook.presto.spi.ConnectorInsertTableHandle;
 import com.facebook.presto.spi.ConnectorOutputTableHandle;
 import com.facebook.presto.spi.ConnectorPageSink;
@@ -22,6 +23,7 @@ import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.connector.ConnectorPageSinkProvider;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
 import com.google.common.collect.ImmutableList;
+import io.airlift.log.Logger;
 import io.airlift.slice.Slice;
 
 import javax.inject.Inject;
@@ -36,12 +38,15 @@ import static java.util.concurrent.CompletableFuture.completedFuture;
 public class MemoryPageSinkProvider
         implements ConnectorPageSinkProvider
 {
+    private static final Logger log = Logger.get(MemoryPageSinkProvider.class);
     private final MemoryPagesStore pagesStore;
+    private final MemoryConfigManager configManager;
 
     @Inject
-    public MemoryPageSinkProvider(MemoryPagesStore pagesStore)
+    public MemoryPageSinkProvider(MemoryPagesStore pagesStore, MemoryConfigManager configManager)
     {
         this.pagesStore = requireNonNull(pagesStore, "pagesStore is null");
+        this.configManager = requireNonNull(configManager, "configManager is null");
     }
 
     @Override
@@ -51,6 +56,7 @@ public class MemoryPageSinkProvider
         MemoryTableHandle tableHandle = memoryOutputTableHandle.getTable();
         long tableId = tableHandle.getTableId();
         checkState(memoryOutputTableHandle.getActiveTableIds().contains(tableId));
+        configManager.setFromConfig(memoryOutputTableHandle.getMemoryConfig());
         pagesStore.cleanUp(memoryOutputTableHandle.getActiveTableIds());
         pagesStore.initialize(tableHandle.getTableName(), tableId);
         return new MemoryPageSink(pagesStore, tableId);
@@ -63,6 +69,7 @@ public class MemoryPageSinkProvider
         MemoryTableHandle tableHandle = memoryInsertTableHandle.getTable();
         long tableId = tableHandle.getTableId();
         checkState(memoryInsertTableHandle.getActiveTableIds().contains(tableId));
+        configManager.setFromConfig(memoryInsertTableHandle.getMemoryConfig());
         pagesStore.cleanUp(memoryInsertTableHandle.getActiveTableIds());
         return new MemoryPageSink(pagesStore, tableId);
     }
