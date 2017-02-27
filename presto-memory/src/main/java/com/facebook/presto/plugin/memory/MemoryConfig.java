@@ -22,7 +22,7 @@ public class MemoryConfig
 {
     private int splitsPerNode = Runtime.getRuntime().availableProcessors();
     private DataSize maxDataPerNode = new DataSize(128, DataSize.Unit.MEGABYTE);
-    private DataSize maxTableSizePerNode = new DataSize(32, DataSize.Unit.MEGABYTE);
+    private DataSize maxTableSizePerNode = new DataSize(64, DataSize.Unit.MEGABYTE);
 
     @NotNull
     public int getSplitsPerNode()

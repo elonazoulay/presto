@@ -22,7 +22,6 @@ import javax.inject.Inject;
 import java.lang.invoke.MethodHandles;
 
 import static com.facebook.presto.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
-import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static java.lang.Math.toIntExact;
 import static java.util.Objects.requireNonNull;
 
@@ -47,7 +46,7 @@ public class UpdateSplitsPerNodeProcedure
             return new Procedure(
                     "system",
                     "set_splits_per_node",
-                    ImmutableList.of(new Procedure.Argument("splits_per_node", BIGINT)),
+                    ImmutableList.of(new Procedure.Argument("splits_per_node", "BIGINT")),
                     MethodHandles.lookup().unreflect(
                             getClass().getMethod("updateSplitsPerNode", long.class)).bindTo(this));
         }
