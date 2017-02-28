@@ -57,9 +57,8 @@ public class MemoryInfoSystemTable
                         new ColumnMetadata("node_id", VARCHAR),
                         new ColumnMetadata(SCHEMA_NAME, VARCHAR),
                         new ColumnMetadata(TABLE_NAME, VARCHAR),
-                        new ColumnMetadata("size", BIGINT)
-                )
-        );
+                        new ColumnMetadata("rows", BIGINT),
+                        new ColumnMetadata("size_bytes", BIGINT)));
     }
 
     @Override
@@ -80,15 +79,13 @@ public class MemoryInfoSystemTable
         InMemoryRecordSet.Builder systemTable = InMemoryRecordSet.builder(tableMetadata);
         List<String> tableNames = pagesStore.listTables();
         for (String table : tableNames) {
-            Long size = pagesStore.getSize(table);
-            if (size == null) {
-                size = 0L;
-            }
+            MemoryPagesStore.SizeInfo sizeInfo = pagesStore.getSize(table);
             systemTable.addRow(
                     nodeId,
                     MemoryMetadata.SCHEMA_NAME,
                     table,
-                    size
+                    sizeInfo.getRowCount(),
+                    sizeInfo.getsizeBytes()
             );
         }
         return systemTable.build().cursor();

@@ -90,7 +90,7 @@ public class MemoryPagesStore
             throw new PrestoException(MISSING_DATA, "Failed to find table on a worker.");
         }
 
-        long newSize = currentBytes + page.getRetainedSizeInBytes();
+        long newSize = currentBytes + page.[] ();
         long newTableSize = tableSizes.get(tableId) + page.getRetainedSizeInBytes();
         long maxBytes = getMaxBytes();
         if (maxBytes < newSize) {
@@ -127,10 +127,12 @@ public class MemoryPagesStore
         return ImmutableList.copyOf(tableIds.keySet());
     }
 
-    public synchronized long getSize(String tableName)
+    public synchronized SizeInfo getSize(String tableName)
     {
         long tableId = tableIds.get(tableName);
-        return tableSizes.getOrDefault(tableId, 0L);
+        long sizeBytes = pages.get(tableId).stream().mapToLong(Page::getRetainedSizeInBytes).sum();
+        long rowCount = pages.get(tableId).stream().mapToLong(Page::getPositionCount).sum();
+        return new SizeInfo(rowCount, sizeBytes);
     }
 
     public synchronized boolean contains(Long tableId)
@@ -179,5 +181,27 @@ public class MemoryPagesStore
         }
 
         return new Page(page.getPositionCount(), outputBlocks);
+    }
+
+    public static class SizeInfo
+    {
+        private final long rowCount;
+        private final long byteSize;
+
+        public SizeInfo(long rowCount, long byteSize)
+        {
+            this.rowCount = rowCount;
+            this.byteSize = byteSize;
+        }
+
+        public long getRowCount()
+        {
+            return rowCount;
+        }
+
+        public long getsizeBytes()
+        {
+            return byteSize;
+        }
     }
 }

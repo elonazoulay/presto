@@ -179,10 +179,14 @@ public class MemoryMetadata
         Set<Node> nodes = nodeManager.getRequiredWorkerNodes();
         checkState(!nodes.isEmpty(), "No Memory nodes available");
         tableIds.put(tableMetadata.getTable().getTableName(), nextId);
+        Optional<MemoryPartitioningHandle> partitioningHandle = layout
+                .map(ConnectorNewTableLayout::getPartitioning)
+                .map(MemoryPartitioningHandle.class::cast);
         MemoryTableHandle table = new MemoryTableHandle(
                 connectorId,
                 nextId,
                 tableMetadata,
+                // nodes.stream().sorted(Comparator.comparing(Node::getNodeIdentifier)).map(Node::getHostAndPort).collect(Collectors.toList()));
                 nodes.stream().map(Node::getHostAndPort).collect(Collectors.toList()));
         tables.put(table.getTableId(), table);
         MemoryConfigSpec config = configManager.getStaticConfig();
@@ -232,5 +236,24 @@ public class MemoryMetadata
                 Optional.empty(),
                 Optional.empty(),
                 ImmutableList.of());
+    }
+
+    @Override
+    public synchronized Optional<ConnectorNewTableLayout> getNewTableLayout(ConnectorSession session, ConnectorTableMetadata tableMetadata)
+    {
+        ImmutableList.Builder<String> partitionColumns = ImmutableList.builder();
+        for (ColumnMetadata column : tableMetadata.getColumns()) {
+            partitionColumns.add(column.getName());
+        }
+        ImmutableList.Builder<String> bucketToNode = ImmutableList.builder();
+        Set<Node> nodes = nodeManager.getRequiredWorkerNodes();
+        int splitsPerNode = configManager.getConfig().getSplitsPerNode();
+        for (Node node : nodes) {
+            String nodeId = node.getNodeIdentifier();
+            for (int i = 0; i < splitsPerNode; i++) {
+                bucketToNode.add(nodeId);
+            }
+        }
+        return Optional.of(new ConnectorNewTableLayout(new MemoryPartitioningHandle(bucketToNode.build()), partitionColumns.build()));
     }
 }

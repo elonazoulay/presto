@@ -68,6 +68,7 @@ public class MemoryModule
         binder.bind(MemoryPagesStore.class).in(Scopes.SINGLETON);
         binder.bind(MemoryPageSourceProvider.class).in(Scopes.SINGLETON);
         binder.bind(MemoryPageSinkProvider.class).in(Scopes.SINGLETON);
+        binder.bind(MemoryNodePartitioningProvider.class).in(Scopes.SINGLETON);
         configBinder(binder).bindConfig(MemoryConfig.class);
         binder.bind(MemoryConfigManager.class).in(Scopes.SINGLETON);
         Multibinder<SystemTable> tableBinder = newSetBinder(binder, SystemTable.class);

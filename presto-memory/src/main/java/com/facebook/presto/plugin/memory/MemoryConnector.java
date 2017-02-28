@@ -17,6 +17,7 @@ package com.facebook.presto.plugin.memory;
 import com.facebook.presto.spi.SystemTable;
 import com.facebook.presto.spi.connector.Connector;
 import com.facebook.presto.spi.connector.ConnectorMetadata;
+import com.facebook.presto.spi.connector.ConnectorNodePartitioningProvider;
 import com.facebook.presto.spi.connector.ConnectorPageSinkProvider;
 import com.facebook.presto.spi.connector.ConnectorPageSourceProvider;
 import com.facebook.presto.spi.connector.ConnectorSplitManager;
@@ -37,6 +38,7 @@ public class MemoryConnector
     private final MemorySplitManager splitManager;
     private final MemoryPageSourceProvider pageSourceProvider;
     private final MemoryPageSinkProvider pageSinkProvider;
+    private final MemoryNodePartitioningProvider partitioningProvider;
     private final Set<SystemTable> systemTables;
     private final Set<Procedure> procedures;
 
@@ -46,6 +48,7 @@ public class MemoryConnector
             MemorySplitManager splitManager,
             MemoryPageSourceProvider pageSourceProvider,
             MemoryPageSinkProvider pageSinkProvider,
+            MemoryNodePartitioningProvider partitioningProvider,
             Set<SystemTable> systemTables,
             Set<Procedure> procedures)
     {
@@ -53,6 +56,7 @@ public class MemoryConnector
         this.splitManager = splitManager;
         this.pageSourceProvider = pageSourceProvider;
         this.pageSinkProvider = pageSinkProvider;
+        this.partitioningProvider = partitioningProvider;
         this.systemTables = requireNonNull(systemTables, "systemTables is null");
         this.procedures = requireNonNull(procedures);
     }
@@ -85,6 +89,12 @@ public class MemoryConnector
     public ConnectorPageSinkProvider getPageSinkProvider()
     {
         return pageSinkProvider;
+    }
+
+    @Override
+    public ConnectorNodePartitioningProvider getNodePartitioningProvider()
+    {
+        return partitioningProvider;
     }
 
     @Override
