@@ -58,12 +58,6 @@ public class MemoryPagesStore
     @GuardedBy("this")
     private final Map<Long, Long> tableSizes = new HashMap<>();
 
-    @GuardedBy("this")
-    private final Map<Long, String> tableNames = new HashMap<>();
-
-    @GuardedBy("this")
-    private final Map<String, Long> tableIds = new HashMap<>();
-
     private long getMaxBytes()
     {
         return configManager.getConfig().getMaxDataPerNode().toBytes();
@@ -78,8 +72,6 @@ public class MemoryPagesStore
     {
         if (!pages.containsKey(tableId)) {
             pages.put(tableId, new ArrayList<>());
-            tableIds.put(tableName, tableId);
-            tableNames.put(tableId, tableName);
             tableSizes.put(tableId, 0L);
         }
     }
@@ -90,7 +82,7 @@ public class MemoryPagesStore
             throw new PrestoException(MISSING_DATA, "Failed to find table on a worker.");
         }
 
-        long newSize = currentBytes + page.[] ();
+        long newSize = currentBytes + page.getRetainedSizeInBytes();
         long newTableSize = tableSizes.get(tableId) + page.getRetainedSizeInBytes();
         long maxBytes = getMaxBytes();
         if (maxBytes < newSize) {
@@ -118,18 +110,16 @@ public class MemoryPagesStore
         for (int i = partNumber; i < tablePages.size(); i += totalParts) {
             partitionedPages.add(getColumns(tablePages.get(i), columnIndexes));
         }
-
         return partitionedPages.build();
     }
 
-    public synchronized List<String> listTables()
+    public synchronized List<Long> listTableIds()
     {
-        return ImmutableList.copyOf(tableIds.keySet());
+        return ImmutableList.copyOf(pages.keySet());
     }
 
-    public synchronized SizeInfo getSize(String tableName)
+    public synchronized SizeInfo getSize(Long tableId)
     {
-        long tableId = tableIds.get(tableName);
         long sizeBytes = pages.get(tableId).stream().mapToLong(Page::getRetainedSizeInBytes).sum();
         long rowCount = pages.get(tableId).stream().mapToLong(Page::getPositionCount).sum();
         return new SizeInfo(rowCount, sizeBytes);
@@ -165,8 +155,6 @@ public class MemoryPagesStore
                 }
                 tablePages.remove();
                 tableSizes.remove(tableId);
-                String tableName = tableNames.remove(tableId);
-                tableIds.remove(tableName);
             }
         }
     }

@@ -11,16 +11,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.facebook.presto.plugin.memory.systemtables;
 
 import com.facebook.presto.plugin.memory.MemoryMetadata;
-import com.facebook.presto.plugin.memory.MemoryPagesStore;
 import com.facebook.presto.spi.ColumnMetadata;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorTableMetadata;
 import com.facebook.presto.spi.InMemoryRecordSet;
-import com.facebook.presto.spi.NodeManager;
 import com.facebook.presto.spi.RecordCursor;
 import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.SystemTable;
@@ -30,37 +27,35 @@ import com.google.common.collect.ImmutableList;
 
 import javax.inject.Inject;
 
-import static com.facebook.presto.spi.SystemTable.Distribution.ALL_NODES;
+import java.util.Map;
+
+import static com.facebook.presto.spi.SystemTable.Distribution.SINGLE_COORDINATOR;
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.facebook.presto.spi.type.VarcharType.VARCHAR;
-import static java.util.Objects.requireNonNull;
 
-public class MemoryInfoSystemTable
+public class MemoryTableIdSystemTable
     implements SystemTable
 {
+    private final MemoryMetadata metadata;
     private final ConnectorTableMetadata tableMetadata;
-    private final MemoryPagesStore pagesStore;
-    private final String nodeId;
 
     @Inject
-    public MemoryInfoSystemTable(MemoryPagesStore pagesStore, NodeManager nodeManager)
+    public MemoryTableIdSystemTable(MemoryMetadata metadata)
     {
-        this.nodeId = requireNonNull(nodeManager, "nodeManager is null").getCurrentNode().getNodeIdentifier();
-        this.pagesStore = requireNonNull(pagesStore, "pagesStore is null");
+        this.metadata = metadata;
         this.tableMetadata = new ConnectorTableMetadata(
-                new SchemaTableName("system", "table_stats"),
+                new SchemaTableName("system", "table_ids"),
                 ImmutableList.of(
-                        new ColumnMetadata("node_id", VARCHAR),
-                        new ColumnMetadata("schema_name", VARCHAR),
-                        new ColumnMetadata("table_id", BIGINT),
-                        new ColumnMetadata("rows", BIGINT),
-                        new ColumnMetadata("size_bytes", BIGINT)));
+                        new ColumnMetadata("table_name", VARCHAR),
+                        new ColumnMetadata("table_id", BIGINT)
+                )
+        );
     }
 
     @Override
     public Distribution getDistribution()
     {
-        return ALL_NODES;
+        return SINGLE_COORDINATOR;
     }
 
     @Override
@@ -73,15 +68,8 @@ public class MemoryInfoSystemTable
     public RecordCursor cursor(ConnectorTransactionHandle transactionHandle, ConnectorSession session, TupleDomain<Integer> constraint)
     {
         InMemoryRecordSet.Builder systemTable = InMemoryRecordSet.builder(tableMetadata);
-        for (long tableId : pagesStore.listTableIds()) {
-            MemoryPagesStore.SizeInfo sizeInfo = pagesStore.getSize(tableId);
-            systemTable.addRow(
-                    nodeId,
-                    MemoryMetadata.SCHEMA_NAME,
-                    tableId,
-                    sizeInfo.getRowCount(),
-                    sizeInfo.getsizeBytes()
-            );
+        for (Map.Entry<String, Long> table : metadata.getTableIds().entrySet()) {
+            systemTable.addRow(table.getKey(), table.getValue());
         }
         return systemTable.build().cursor();
     }

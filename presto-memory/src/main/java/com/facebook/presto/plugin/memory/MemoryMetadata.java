@@ -36,6 +36,7 @@ import com.facebook.presto.spi.connector.ConnectorMetadata;
 import com.facebook.presto.spi.connector.ConnectorOutputMetadata;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.airlift.log.Logger;
 import io.airlift.slice.Slice;
@@ -179,14 +180,10 @@ public class MemoryMetadata
         Set<Node> nodes = nodeManager.getRequiredWorkerNodes();
         checkState(!nodes.isEmpty(), "No Memory nodes available");
         tableIds.put(tableMetadata.getTable().getTableName(), nextId);
-        Optional<MemoryPartitioningHandle> partitioningHandle = layout
-                .map(ConnectorNewTableLayout::getPartitioning)
-                .map(MemoryPartitioningHandle.class::cast);
         MemoryTableHandle table = new MemoryTableHandle(
                 connectorId,
                 nextId,
                 tableMetadata,
-                // nodes.stream().sorted(Comparator.comparing(Node::getNodeIdentifier)).map(Node::getHostAndPort).collect(Collectors.toList()));
                 nodes.stream().map(Node::getHostAndPort).collect(Collectors.toList()));
         tables.put(table.getTableId(), table);
         MemoryConfigSpec config = configManager.getStaticConfig();
@@ -255,5 +252,10 @@ public class MemoryMetadata
             }
         }
         return Optional.of(new ConnectorNewTableLayout(new MemoryPartitioningHandle(bucketToNode.build()), partitionColumns.build()));
+    }
+
+    public synchronized Map<String, Long> getTableIds()
+    {
+        return ImmutableMap.copyOf(tableIds);
     }
 }

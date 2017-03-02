@@ -19,6 +19,7 @@ import com.facebook.presto.plugin.memory.config.UpdateMaxTableSizePerNodeProcedu
 import com.facebook.presto.plugin.memory.config.UpdateSplitsPerNodeProcedure;
 import com.facebook.presto.plugin.memory.systemtables.MemoryConfigSystemTable;
 import com.facebook.presto.plugin.memory.systemtables.MemoryInfoSystemTable;
+import com.facebook.presto.plugin.memory.systemtables.MemoryTableIdSystemTable;
 import com.facebook.presto.spi.NodeManager;
 import com.facebook.presto.spi.SystemTable;
 import com.facebook.presto.spi.procedure.Procedure;
@@ -74,6 +75,7 @@ public class MemoryModule
         Multibinder<SystemTable> tableBinder = newSetBinder(binder, SystemTable.class);
         tableBinder.addBinding().to(MemoryInfoSystemTable.class).in(Scopes.SINGLETON);
         tableBinder.addBinding().to(MemoryConfigSystemTable.class).in(Scopes.SINGLETON);
+        tableBinder.addBinding().to(MemoryTableIdSystemTable.class).in(Scopes.SINGLETON);
         Multibinder.newSetBinder(binder, Procedure.class);
         binder.bind(UpdateMaxDataPerNodeProcedure.class).in(Scopes.SINGLETON);
         binder.bind(UpdateMaxTableSizePerNodeProcedure.class).in(Scopes.SINGLETON);

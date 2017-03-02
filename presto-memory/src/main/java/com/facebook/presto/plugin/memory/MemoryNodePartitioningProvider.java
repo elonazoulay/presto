@@ -55,7 +55,6 @@ public class MemoryNodePartitioningProvider
     {
         // Copied from RaptorNodePartitioningProvider
         Map<String, Node> nodesById = uniqueIndex(nodeManager.getRequiredWorkerNodes(), Node::getNodeIdentifier);
-        Set<Node> nodes = nodeManager.getRequiredWorkerNodes();
         MemoryPartitioningHandle handle = (MemoryPartitioningHandle) partitioningHandle;
         ImmutableMap.Builder<Integer, Node> bucketToNode = ImmutableMap.builder();
 
