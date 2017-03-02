@@ -185,7 +185,8 @@ public class TestMemoryPagesStore
                         "schema",
                         format("table_%d", tableId),
                         tableId, ImmutableList.of(),
-                        ImmutableList.of(HostAddress.fromString("localhost:8080"))),
+                        ImmutableList.of(HostAddress.fromString("localhost:8080")),
+                        memoryConfig.getSplitsPerNode()),
                 ImmutableSet.copyOf(activeTableIds),
                 memoryConfig);
     }
@@ -199,7 +200,8 @@ public class TestMemoryPagesStore
                         format("table_%d", tableId),
                         tableId,
                         ImmutableList.of(),
-                        ImmutableList.of(HostAddress.fromString("localhost:8080"))),
+                        ImmutableList.of(HostAddress.fromString("localhost:8080")),
+                        memoryConfig.getSplitsPerNode()),
                 ImmutableSet.copyOf(activeTableIds),
                 memoryConfig);
     }

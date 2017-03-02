@@ -30,7 +30,6 @@ import javax.inject.Inject;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.ToIntFunction;
 
 import static com.facebook.presto.spi.StandardErrorCode.NO_NODES_AVAILABLE;
@@ -77,7 +76,7 @@ public class MemoryNodePartitioningProvider
             ConnectorSession session,
             ConnectorPartitioningHandle partitioningHandle)
     {
-        return value -> ((MemorySplit) value).getPartNumber();
+        return value -> ((MemorySplit) value).getBucket();
     }
 
     @Override

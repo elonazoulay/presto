@@ -14,7 +14,6 @@
 
 package com.facebook.presto.plugin.memory;
 
-import com.facebook.presto.plugin.memory.config.MemoryConfigManager;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorSplit;
 import com.facebook.presto.spi.ConnectorSplitSource;
@@ -25,43 +24,30 @@ import com.facebook.presto.spi.connector.ConnectorSplitManager;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
 import com.google.common.collect.ImmutableList;
 
-import javax.inject.Inject;
-
 import java.util.List;
+
+import static java.lang.Math.toIntExact;
 
 public final class MemorySplitManager
         implements ConnectorSplitManager
 {
-    private final MemoryConfigManager configManager;
-
-    @Inject
-    public MemorySplitManager(MemoryConfigManager configManager)
-    {
-        this.configManager = configManager;
-    }
-
-    private int getSplitsPerNode()
-    {
-        return configManager.getConfig().getSplitsPerNode();
-    }
-
     @Override
     public ConnectorSplitSource getSplits(ConnectorTransactionHandle transactionHandle, ConnectorSession session, ConnectorTableLayoutHandle layoutHandle)
     {
         MemoryTableLayoutHandle layout = (MemoryTableLayoutHandle) layoutHandle;
-
         List<HostAddress> hosts = layout.getTable().getHosts();
-
         ImmutableList.Builder<ConnectorSplit> splits = ImmutableList.builder();
-        int splitsPerNode = getSplitsPerNode();
-        for (HostAddress host : hosts) {
+        int splitsPerNode = toIntExact(layout.getTable().getSplitsPerWorker());
+        for (int bucket = 0; bucket < hosts.size(); bucket++) {
+            HostAddress host = hosts.get(bucket);
             for (int i = 0; i < splitsPerNode; i++) {
                 splits.add(
                         new MemorySplit(
                                 layout.getTable(),
                                 i,
                                 splitsPerNode,
-                                ImmutableList.of(host)));
+                                ImmutableList.of(host),
+                                bucket));
             }
         }
         return new FixedSplitSource(splits.build());

@@ -23,16 +23,25 @@ public class MemoryPartitioningHandle
     implements ConnectorPartitioningHandle
 {
     private final List<String> bucketToNode;
-
+    private final long splitsPerWorker;
     @JsonCreator
-    public MemoryPartitioningHandle(@JsonProperty("bucketToNode") List<String> bucketToNode)
+    public MemoryPartitioningHandle(
+            @JsonProperty("bucketToNode") List<String> bucketToNode,
+            @JsonProperty("splitsPerWorker") long splitsPerWorker)
     {
         this.bucketToNode = bucketToNode;
+        this.splitsPerWorker = splitsPerWorker;
     }
 
     @JsonProperty
     public List<String> getBucketToNode()
     {
         return bucketToNode;
+    }
+
+    @JsonProperty
+    public long getSplitsPerWorker()
+    {
+        return splitsPerWorker;
     }
 }
