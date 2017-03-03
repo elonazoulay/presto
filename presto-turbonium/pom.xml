@@ -8,8 +8,8 @@
         <version>0.168-SNAPSHOT</version>
     </parent>
 
-    <artifactId>presto-memory</artifactId>
-    <description>Presto - Memory Connector</description>
+    <artifactId>presto-turbonium</artifactId>
+    <description>Presto - Turbonium Connector</description>
     <packaging>presto-plugin</packaging>
 
     <properties>
