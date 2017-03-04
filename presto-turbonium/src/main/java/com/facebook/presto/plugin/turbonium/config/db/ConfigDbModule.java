@@ -26,12 +26,12 @@ public class ConfigDbModule
     public void setup(Binder ignored)
     {
         install(installModuleIf(
-                MemoryDbConfig.class,
+                TurboniumDbConfig.class,
                 config -> "mysql".equals(config.getConfigDbType()),
-                binder -> binder.bind(MemoryConfigDao.class).toProvider(MySqlDaoProvider.class).in(Scopes.SINGLETON)));
+                binder -> binder.bind(TurboniumConfigDao.class).toProvider(MySqlDaoProvider.class).in(Scopes.SINGLETON)));
         install(installModuleIf(
-                MemoryDbConfig.class,
+                TurboniumDbConfig.class,
                 config -> "h2".equals(config.getConfigDbType()),
-                binder -> binder.bind(MemoryConfigDao.class).toProvider(H2DaoProvider.class).in(Scopes.SINGLETON)));
+                binder -> binder.bind(TurboniumConfigDao.class).toProvider(H2DaoProvider.class).in(Scopes.SINGLETON)));
     }
 }

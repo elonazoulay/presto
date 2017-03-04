@@ -26,10 +26,10 @@ import static java.util.Objects.requireNonNull;
 
 public class UpdateMaxDataPerNodeProcedure
 {
-    private final MemoryConfigManager configManager;
+    private final TurboniumConfigManager configManager;
 
     @Inject
-    public UpdateMaxDataPerNodeProcedure(MemoryConfigManager configManager)
+    public UpdateMaxDataPerNodeProcedure(TurboniumConfigManager configManager)
     {
         this.configManager = requireNonNull(configManager, "configManager is null");
     }

@@ -24,22 +24,22 @@ import static com.facebook.presto.plugin.turbonium.config.db.DatabaseUtil.onDema
 import static java.util.Objects.requireNonNull;
 
 public class MySqlDaoProvider
-    implements Provider<MemoryConfigDao>
+    implements Provider<TurboniumConfigDao>
 {
-    private final MemoryConfigDao dao;
+    private final TurboniumConfigDao dao;
 
     @Inject
-    public MySqlDaoProvider(MemoryDbConfig dbConfig)
+    public MySqlDaoProvider(TurboniumDbConfig dbConfig)
     {
         requireNonNull(dbConfig, "dbConfig is null");
         MysqlDataSource dataSource = new MysqlDataSource();
         dataSource.setURL(dbConfig.getConfigDbUrl());
         IDBI dbi = new DBI(dataSource);
-        this.dao = onDemandDao(dbi, MemoryConfigDao.class);
+        this.dao = onDemandDao(dbi, TurboniumConfigDao.class);
     }
 
     @Override
-    public MemoryConfigDao get()
+    public TurboniumConfigDao get()
     {
         return dao;
     }

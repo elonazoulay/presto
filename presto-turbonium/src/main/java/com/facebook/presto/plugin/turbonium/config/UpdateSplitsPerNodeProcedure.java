@@ -27,10 +27,10 @@ import static java.util.Objects.requireNonNull;
 
 public class UpdateSplitsPerNodeProcedure
 {
-    private final MemoryConfigManager configManager;
+    private final TurboniumConfigManager configManager;
 
     @Inject
-    public UpdateSplitsPerNodeProcedure(MemoryConfigManager configManager)
+    public UpdateSplitsPerNodeProcedure(TurboniumConfigManager configManager)
     {
         this.configManager = requireNonNull(configManager, "configManager is null");
     }
