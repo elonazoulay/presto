@@ -541,10 +541,10 @@ public class TestQueues
         dao.insertResourceGroupsGlobalProperties("cpu_quota_period", "1h");
         dao.insertResourceGroup(1, "global", "1MB", "1MB", 100, 1000, null, null, null, null, null, null, null, null);
         dao.insertResourceGroup(2, "bi-${USER}", "1MB", "1MB", 3, 2, null, null, null, null, null, null, null, 1L);
-        dao.insertResourceGroup(3, "user-${USER}", "1MB", "1MB", 3, 3, null, null, null, null, null, null, null,1L);
-        dao.insertResourceGroup(4, "adhoc-${USER}", "1MB", "1MB", 3, 3, null, null, null, null, null, null, null,3L);
-        dao.insertResourceGroup(5, "dashboard-${USER}", "1MB", "1MB", 1, 1, null, null, null, null, null, null, null,3L);
-        dao.insertResourceGroup(6, "admin", "1MB", "1MB", 3, 3, null, null, null, null, null, null, null,1L);
+        dao.insertResourceGroup(3, "user-${USER}", "1MB", "1MB", 3, 3, null, null, null, null, null, null, null, 1L);
+        dao.insertResourceGroup(4, "adhoc-${USER}", "1MB", "1MB", 3, 3, null, null, null, null, null, null, null, 3L);
+        dao.insertResourceGroup(5, "dashboard-${USER}", "1MB", "1MB", 1, 1, null, null, null, null, null, null, null, 3L);
+        dao.insertResourceGroup(6, "admin", "1MB", "1MB", 3, 3, null, null, null, null, null, null, null, 1L);
         dao.insertSelector(2, "user.*", "test");
         dao.insertSelector(4, "user.*", "(?i).*adhoc.*");
         dao.insertSelector(5, "user.*", "(?i).*dashboard.*");
