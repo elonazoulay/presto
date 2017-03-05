@@ -13,10 +13,14 @@
  */
 package com.facebook.presto.resourceGroups.systemtables;
 
+import com.facebook.presto.resourceGroups.ResourceGroupIdTemplate;
+import com.facebook.presto.resourceGroups.ResourceGroupSpec;
 import com.facebook.presto.resourceGroups.SelectorSpec;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Objects.requireNonNull;
@@ -24,6 +28,7 @@ import static java.util.Objects.requireNonNull;
 public class ResourceGroupInfoHolder
 {
     private final AtomicReference<List<SelectorSpec>> selectorSpecs = new AtomicReference<>(ImmutableList.of());
+    private final AtomicReference<Map<ResourceGroupIdTemplate, ResourceGroupSpec>> resourceGroupSpecs = new AtomicReference<>(ImmutableMap.of());
 
     public void setSelectorSpecs(List<SelectorSpec> selectorSpecs)
     {
@@ -33,5 +38,15 @@ public class ResourceGroupInfoHolder
     public List<SelectorSpec> getSelectorSpecs()
     {
         return selectorSpecs.get();
+    }
+
+    public void setResourceGroupSpecs(Map<ResourceGroupIdTemplate, ResourceGroupSpec> resourceGroupSpecs)
+    {
+        this.resourceGroupSpecs.set(requireNonNull(ImmutableMap.copyOf(resourceGroupSpecs), "resourceGroupSpecs is null"));
+    }
+
+    public Map<ResourceGroupIdTemplate, ResourceGroupSpec> getResourceGroupSpecs()
+    {
+        return resourceGroupSpecs.get();
     }
 }
