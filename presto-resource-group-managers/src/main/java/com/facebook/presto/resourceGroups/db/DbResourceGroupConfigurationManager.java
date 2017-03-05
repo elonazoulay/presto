@@ -157,6 +157,7 @@ public class DbResourceGroupConfigurationManager
             }
 
             this.resourceGroupSpecs = resourceGroupSpecs;
+            this.resourceGroupInfoHolder.setResourceGroupSpecs(resourceGroupSpecs);
             this.cpuQuotaPeriod.set(managerSpec.getCpuQuotaPeriod());
             this.rootGroups.set(managerSpec.getRootGroups());
             this.selectors.set(buildSelectors(managerSpec));

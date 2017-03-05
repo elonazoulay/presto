@@ -170,6 +170,18 @@ public class TestDbResourceGroupConfigurationManager
         } while(globalSub.getMaxQueuedQueries() != 0 || globalSub.getMaxRunningQueries() != 0);
     }
 
+    @Test(timeOut = 60_000)
+    public void testSelectorSystemTable()
+    {
+        // TODO
+    }
+
+    @Test(timeOut = 60_000)
+    public void testResourceGroupSpecsSystemTable()
+    {
+        // TODO
+    }
+
     private static void assertEqualsResourceGroup(
             InternalResourceGroup group,
             String softMemoryLimit,

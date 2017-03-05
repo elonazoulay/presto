@@ -34,5 +34,6 @@ public class ResourceGroupsConnectorModule
         Multibinder<SystemTable> tableBinder = newSetBinder(binder, SystemTable.class);
         tableBinder.addBinding().to(ResourceGroupsInfoSystemTable.class).in(Scopes.SINGLETON);
         tableBinder.addBinding().to(ResourceGroupSelectorsSystemTable.class).in(Scopes.SINGLETON);
+        tableBinder.addBinding().to(ResourceGroupSpecSystemTable.class).in(Scopes.SINGLETON);
     }
 }
