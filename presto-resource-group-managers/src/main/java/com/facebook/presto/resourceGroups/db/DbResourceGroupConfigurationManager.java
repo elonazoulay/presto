@@ -19,6 +19,7 @@ import com.facebook.presto.resourceGroups.ResourceGroupIdTemplate;
 import com.facebook.presto.resourceGroups.ResourceGroupSpec;
 import com.facebook.presto.resourceGroups.SelectorSpec;
 import com.facebook.presto.resourceGroups.systemtables.QueryQueueCache;
+import com.facebook.presto.resourceGroups.systemtables.ResourceGroupInfoHolder;
 import com.facebook.presto.spi.memory.ClusterMemoryPoolManager;
 import com.facebook.presto.spi.resourceGroups.ResourceGroup;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupId;
@@ -70,11 +71,13 @@ public class DbResourceGroupConfigurationManager
     private final AtomicReference<Optional<Duration>> cpuQuotaPeriod = new AtomicReference<>(Optional.empty());
     private final ScheduledExecutorService configExecutor = newSingleThreadScheduledExecutor(daemonThreadsNamed("DbResourceGroupConfigurationManager"));
     private final AtomicBoolean started = new AtomicBoolean();
+    private final ResourceGroupInfoHolder resourceGroupInfoHolder;
 
     @Inject
-    public DbResourceGroupConfigurationManager(ClusterMemoryPoolManager memoryPoolManager, ResourceGroupsDao dao, QueryQueueCache queryQueueCache)
+    public DbResourceGroupConfigurationManager(ClusterMemoryPoolManager memoryPoolManager, ResourceGroupsDao dao, QueryQueueCache queryQueueCache, ResourceGroupInfoHolder resourceGroupInfoHolder)
     {
         super(memoryPoolManager, queryQueueCache);
+        this.resourceGroupInfoHolder = requireNonNull(resourceGroupInfoHolder, "resourceGroupInfoHolder is null");
         requireNonNull(memoryPoolManager, "memoryPoolManager is null");
         requireNonNull(dao, "daoProvider is null");
         this.dao = dao;
@@ -157,7 +160,7 @@ public class DbResourceGroupConfigurationManager
             this.cpuQuotaPeriod.set(managerSpec.getCpuQuotaPeriod());
             this.rootGroups.set(managerSpec.getRootGroups());
             this.selectors.set(buildSelectors(managerSpec));
-
+            this.resourceGroupInfoHolder.setSelectorSpecs(managerSpec.getSelectors());
             configureChangedGroups(changedSpecs);
             disableDeletedGroups(deletedSpecs);
         }

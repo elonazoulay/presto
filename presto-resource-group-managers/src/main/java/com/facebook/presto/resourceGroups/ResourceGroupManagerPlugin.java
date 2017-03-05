@@ -15,6 +15,7 @@ package com.facebook.presto.resourceGroups;
 
 import com.facebook.presto.resourceGroups.db.DbResourceGroupConfigurationManagerFactory;
 import com.facebook.presto.resourceGroups.systemtables.QueryQueueCache;
+import com.facebook.presto.resourceGroups.systemtables.ResourceGroupInfoHolder;
 import com.facebook.presto.resourceGroups.systemtables.ResourceGroupsConnectorFactory;
 import com.facebook.presto.spi.Plugin;
 import com.facebook.presto.spi.connector.ConnectorFactory;
@@ -27,12 +28,14 @@ public class ResourceGroupManagerPlugin
         implements Plugin
 {
     private final QueryQueueCache queryQueueCache = new QueryQueueCache();
+    private final ResourceGroupInfoHolder resourceGroupInfoHolder = new ResourceGroupInfoHolder();
+
     @Override
     public Iterable<ResourceGroupConfigurationManagerFactory> getResourceGroupConfigurationManagerFactories()
     {
         return ImmutableList.of(
                 new FileResourceGroupConfigurationManagerFactory(getClassLoader(), queryQueueCache),
-                new DbResourceGroupConfigurationManagerFactory(getClassLoader(), queryQueueCache));
+                new DbResourceGroupConfigurationManagerFactory(getClassLoader(), queryQueueCache, resourceGroupInfoHolder));
     }
 
     private static ClassLoader getClassLoader()
@@ -43,6 +46,6 @@ public class ResourceGroupManagerPlugin
     @Override
     public Iterable<ConnectorFactory> getConnectorFactories()
     {
-        return ImmutableList.of(new ResourceGroupsConnectorFactory(queryQueueCache));
+        return ImmutableList.of(new ResourceGroupsConnectorFactory(queryQueueCache, resourceGroupInfoHolder));
     }
 }

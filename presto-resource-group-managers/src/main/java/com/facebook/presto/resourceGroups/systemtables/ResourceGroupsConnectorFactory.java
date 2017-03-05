@@ -17,21 +17,24 @@ import com.facebook.presto.spi.ConnectorHandleResolver;
 import com.facebook.presto.spi.connector.Connector;
 import com.facebook.presto.spi.connector.ConnectorContext;
 import com.facebook.presto.spi.connector.ConnectorFactory;
-import com.google.common.base.Throwables;
 import com.google.inject.Injector;
 import io.airlift.bootstrap.Bootstrap;
 
 import java.util.Map;
+
+import static java.util.Objects.requireNonNull;
 
 public class ResourceGroupsConnectorFactory
     implements ConnectorFactory
 {
     private static final String name = "resource-group-managers";
     private final QueryQueueCache queryQueueCache;
+    private final ResourceGroupInfoHolder resourceGroupInfoHolder;
 
-    public ResourceGroupsConnectorFactory(QueryQueueCache queryQueueCache)
+    public ResourceGroupsConnectorFactory(QueryQueueCache queryQueueCache, ResourceGroupInfoHolder resourceGroupInfoHolder)
     {
-        this.queryQueueCache = queryQueueCache;
+        this.queryQueueCache = requireNonNull(queryQueueCache, "queryQueueCache is null");
+        this.resourceGroupInfoHolder = requireNonNull(resourceGroupInfoHolder, "resourceGroupInfoHolder is null");
     }
 
     @Override
@@ -52,8 +55,8 @@ public class ResourceGroupsConnectorFactory
         try {
             Bootstrap app = new Bootstrap(
                     new ResourceGroupsConnectorModule(),
-                    binder -> binder.bind(QueryQueueCache.class).toInstance(queryQueueCache)
-
+                    binder -> binder.bind(QueryQueueCache.class).toInstance(queryQueueCache),
+                    binder -> binder.bind(ResourceGroupInfoHolder.class).toInstance(resourceGroupInfoHolder)
             );
             Injector injector = app
                     .strictConfig()
@@ -63,7 +66,7 @@ public class ResourceGroupsConnectorFactory
             return injector.getInstance(ResourceGroupsConnector.class);
         }
         catch (Exception e) {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e);
         }
     }
 }
