@@ -80,7 +80,7 @@ public class TurboniumInfoSystemTable
                     TurboniumMetadata.SCHEMA_NAME,
                     tableId,
                     sizeInfo.getRowCount(),
-                    sizeInfo.getsizeBytes()
+                    sizeInfo.getSizeBytes()
             );
         }
         return systemTable.build().cursor();

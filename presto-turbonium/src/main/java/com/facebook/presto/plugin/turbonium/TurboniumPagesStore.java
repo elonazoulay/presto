@@ -187,7 +187,7 @@ public class TurboniumPagesStore
             return rowCount;
         }
 
-        public long getsizeBytes()
+        public long getSizeBytes()
         {
             return byteSize;
         }
