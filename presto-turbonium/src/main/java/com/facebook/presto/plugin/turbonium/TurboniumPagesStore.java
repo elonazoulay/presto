@@ -81,7 +81,7 @@ public class TurboniumPagesStore
         if (!contains(tableId)) {
             throw new PrestoException(MISSING_DATA, "Failed to find table on a worker.");
         }
-
+        page.compact();
         long newSize = currentBytes + page.getRetainedSizeInBytes();
         long newTableSize = tableSizes.get(tableId) + page.getRetainedSizeInBytes();
         long maxBytes = getMaxBytes();
