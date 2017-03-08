@@ -16,11 +16,15 @@ package com.facebook.presto.resourceGroups.systemtables;
 import com.facebook.presto.resourceGroups.ResourceGroupIdTemplate;
 import com.facebook.presto.resourceGroups.ResourceGroupSpec;
 import com.facebook.presto.resourceGroups.SelectorSpec;
+import com.facebook.presto.spi.resourceGroups.ResourceGroupId;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Objects.requireNonNull;
@@ -29,6 +33,8 @@ public class ResourceGroupInfoHolder
 {
     private final AtomicReference<List<SelectorSpec>> selectorSpecs = new AtomicReference<>(ImmutableList.of());
     private final AtomicReference<Map<ResourceGroupIdTemplate, ResourceGroupSpec>> resourceGroupSpecs = new AtomicReference<>(ImmutableMap.of());
+    private final Map<ResourceGroupId, ResourceGroupSpec> groups = new ConcurrentHashMap<>();
+    private final ConcurrentMap<ResourceGroupIdTemplate, List<ResourceGroupId>> specToGroup = new ConcurrentHashMap<>();
 
     public void setSelectorSpecs(List<SelectorSpec> selectorSpecs)
     {
@@ -48,5 +54,25 @@ public class ResourceGroupInfoHolder
     public Map<ResourceGroupIdTemplate, ResourceGroupSpec> getResourceGroupSpecs()
     {
         return resourceGroupSpecs.get();
+    }
+
+    public void setConfiguredGroup(ResourceGroupId groupId, ResourceGroupSpec spec)
+    {
+        groups.put(groupId, spec);
+    }
+
+    public Map<ResourceGroupId, ResourceGroupSpec> getConfiguredGroups()
+    {
+        return ImmutableMap.copyOf(groups);
+    }
+
+    public void addGroupToSpec(ResourceGroupIdTemplate specId, ResourceGroupId groupId)
+    {
+        specToGroup.computeIfAbsent(specId, v -> new LinkedList<>()).add(groupId);
+    }
+
+    public Map<ResourceGroupIdTemplate, List<ResourceGroupId>> getSpecToGroup()
+    {
+        return ImmutableMap.copyOf(specToGroup);
     }
 }

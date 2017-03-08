@@ -122,9 +122,11 @@ public class DbResourceGroupConfigurationManager
         if (groups.putIfAbsent(group.getId(), group) == null) {
             // If a new spec replaces the spec returned from getMatchingSpec the group will be reconfigured on the next run of load().
             configuredGroups.computeIfAbsent(entry.getKey(), v -> new LinkedList<>()).add(group.getId());
+            resourceGroupInfoHolder.addGroupToSpec(entry.getKey(), group.getId());
         }
         synchronized (getRootGroup(group.getId())) {
             configureGroup(group, entry.getValue());
+            resourceGroupInfoHolder.setConfiguredGroup(group.getId(), entry.getValue());
         }
     }
 
@@ -253,6 +255,7 @@ public class DbResourceGroupConfigurationManager
             for (ResourceGroupId resourceGroupId : configuredGroups.getOrDefault(resourceGroupIdTemplate, ImmutableList.of())) {
                 synchronized (getRootGroup(resourceGroupId)) {
                     configureGroup(groups.get(resourceGroupId), resourceGroupSpecs.get(resourceGroupIdTemplate));
+                    resourceGroupInfoHolder.setConfiguredGroup(resourceGroupId, resourceGroupSpecs.get(resourceGroupIdTemplate));
                 }
             }
         }

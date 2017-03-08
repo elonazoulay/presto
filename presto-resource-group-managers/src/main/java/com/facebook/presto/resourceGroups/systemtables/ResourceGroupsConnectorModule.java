@@ -36,5 +36,7 @@ public class ResourceGroupsConnectorModule
         tableBinder.addBinding().to(ResourceGroupSelectorsSystemTable.class).in(Scopes.SINGLETON);
         tableBinder.addBinding().to(ResourceGroupSpecSystemTable.class).in(Scopes.SINGLETON);
         tableBinder.addBinding().to(ResourceGroupsParentChildSystemTable.class).in(Scopes.SINGLETON);
+        tableBinder.addBinding().to(ConfiguredGroupsSystemTable.class).in(Scopes.SINGLETON);
+        tableBinder.addBinding().to(ResourceGroupSpecSystemTable.class).in(Scopes.SINGLETON);
     }
 }

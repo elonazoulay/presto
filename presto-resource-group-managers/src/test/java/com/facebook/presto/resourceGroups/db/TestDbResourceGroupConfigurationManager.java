@@ -188,6 +188,18 @@ public class TestDbResourceGroupConfigurationManager
         // TODO
     }
 
+    @Test(timeOut = 60_000)
+    public void testConfiguredGroupsSystemTable()
+    {
+        // TODO
+    }
+
+    @Test(timeOut = 60_000)
+    public void testResourceGroupSpecToGroupSystemTable()
+    {
+        // TODO
+    }
+
     private static void assertEqualsResourceGroup(
             InternalResourceGroup group,
             String softMemoryLimit,
