@@ -20,7 +20,7 @@ import org.testng.annotations.Test;
 
 import java.util.concurrent.TimeUnit;
 
-import static com.facebook.presto.execution.resourceGroups.db.TestQueues.getSimpleQueryRunner;
+import static com.facebook.presto.execution.resourceGroups.db.H2QueryRunner.getSimpleQueryRunner;
 
 public class TestResourceGroupIntegration
 {

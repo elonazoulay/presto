@@ -14,31 +14,29 @@
 package com.facebook.presto.resourceGroups.db;
 
 import com.facebook.presto.resourceGroups.AbstractResourceConfigurationManager;
-import com.facebook.presto.resourceGroups.ManagerSpec;
 import com.facebook.presto.resourceGroups.ResourceGroupIdTemplate;
+import com.facebook.presto.resourceGroups.ResourceGroupNameTemplate;
 import com.facebook.presto.resourceGroups.ResourceGroupSpec;
 import com.facebook.presto.resourceGroups.SelectorSpec;
 import com.facebook.presto.resourceGroups.systemtables.QueryQueueCache;
 import com.facebook.presto.resourceGroups.systemtables.ResourceGroupInfoHolder;
+import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.memory.ClusterMemoryPoolManager;
+import com.facebook.presto.spi.resourceGroups.QueryQueueInfo;
 import com.facebook.presto.spi.resourceGroups.ResourceGroup;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupId;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupSelector;
+import com.facebook.presto.spi.resourceGroups.SchedulingPolicy;
 import com.facebook.presto.spi.resourceGroups.SelectionContext;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 import io.airlift.log.Logger;
 import io.airlift.units.Duration;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
-import javax.annotation.concurrent.GuardedBy;
 import javax.inject.Inject;
 
-import java.util.AbstractMap;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -46,16 +44,16 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
+import java.util.regex.Pattern;
 
+import static com.facebook.presto.resourceGroups.db.ResourceGroupErrorCode.GENERIC_RESOURCE_GROUP_ERROR;
+import static com.facebook.presto.resourceGroups.db.ResourceGroupErrorCode.INVALID_CPU_QUOTA_PERIOD;
+import static com.facebook.presto.resourceGroups.db.ResourceGroupErrorCode.RESOURCE_GROUP_NOT_FOUND;
 import static com.google.common.base.Preconditions.checkState;
-import static io.airlift.concurrent.Threads.daemonThreadsNamed;
+import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
-import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
 
 public class DbResourceGroupConfigurationManager
         extends AbstractResourceConfigurationManager
@@ -63,21 +61,24 @@ public class DbResourceGroupConfigurationManager
     private static final Logger log = Logger.get(DbResourceGroupConfigurationManager.class);
     private final ResourceGroupsDao dao;
     private final ConcurrentMap<ResourceGroupId, ResourceGroup> groups = new ConcurrentHashMap<>();
-    @GuardedBy("this")
-    private Map<ResourceGroupIdTemplate, ResourceGroupSpec> resourceGroupSpecs = new HashMap<>();
     private final ConcurrentMap<ResourceGroupIdTemplate, List<ResourceGroupId>> configuredGroups = new ConcurrentHashMap<>();
-    private final AtomicReference<List<ResourceGroupSpec>> rootGroups = new AtomicReference<>(ImmutableList.of());
-    private final AtomicReference<List<ResourceGroupSelector>> selectors = new AtomicReference<>();
-    private final AtomicReference<Optional<Duration>> cpuQuotaPeriod = new AtomicReference<>(Optional.empty());
-    private final ScheduledExecutorService configExecutor = newSingleThreadScheduledExecutor(daemonThreadsNamed("DbResourceGroupConfigurationManager"));
     private final AtomicBoolean started = new AtomicBoolean();
     private final ResourceGroupInfoHolder resourceGroupInfoHolder;
+    private final ConfigurationNotifier configurationNotifier;
+    private final AtomicReference<DbSpecInfo> specInfo;
 
     @Inject
-    public DbResourceGroupConfigurationManager(ClusterMemoryPoolManager memoryPoolManager, ResourceGroupsDao dao, QueryQueueCache queryQueueCache, ResourceGroupInfoHolder resourceGroupInfoHolder)
+    public DbResourceGroupConfigurationManager(
+            ClusterMemoryPoolManager memoryPoolManager,
+            ResourceGroupsDao dao,
+            QueryQueueCache queryQueueCache,
+            ResourceGroupInfoHolder resourceGroupInfoHolder,
+            ConfigurationNotifier configurationNotifier)
     {
         super(memoryPoolManager, queryQueueCache);
         this.resourceGroupInfoHolder = requireNonNull(resourceGroupInfoHolder, "resourceGroupInfoHolder is null");
+        this.specInfo = new AtomicReference<>(new DbSpecInfo(resourceGroupInfoHolder));
+        this.configurationNotifier = requireNonNull(configurationNotifier, "configurationNotifier is null");
         requireNonNull(memoryPoolManager, "memoryPoolManager is null");
         requireNonNull(dao, "daoProvider is null");
         this.dao = dao;
@@ -90,29 +91,28 @@ public class DbResourceGroupConfigurationManager
     @Override
     protected Optional<Duration> getCpuQuotaPeriodMillis()
     {
-        return cpuQuotaPeriod.get();
+        return getSpecInfo().getManagerSpec().getCpuQuotaPeriod();
     }
 
     @Override
     protected List<ResourceGroupSpec> getRootGroups()
     {
-        return rootGroups.get();
+        return getSpecInfo().getManagerSpec().getRootGroups();
     }
 
     @PreDestroy
     public void destroy()
     {
         destroyCache();
-        configExecutor.shutdownNow();
     }
 
     @PostConstruct
     public void start()
     {
         if (started.compareAndSet(false, true)) {
-            configExecutor.scheduleWithFixedDelay(this::load, 1, 1, TimeUnit.SECONDS);
+            configurationNotifier.setConfigurationManager(this);
+            startCache();
         }
-        startCache();
     }
 
     @Override
@@ -131,120 +131,353 @@ public class DbResourceGroupConfigurationManager
     @Override
     public List<ResourceGroupSelector> getSelectors()
     {
-        return this.selectors.get();
+        return getSpecInfo().getSelectors();
     }
 
-    private synchronized Optional<Duration> getCpuQuotaPeriodFromDb()
-    {
-        List<ResourceGroupGlobalProperties> globalProperties = dao.getResourceGroupGlobalProperties();
-        checkState(globalProperties.size() <= 1, "There is more than one cpu_quota_period");
-        return (!globalProperties.isEmpty()) ? globalProperties.get(0).getCpuQuotaPeriod() : Optional.empty();
-    }
-
-    private synchronized void load()
+    synchronized void load()
     {
         try {
-            Map.Entry<ManagerSpec, Map<ResourceGroupIdTemplate, ResourceGroupSpec>> specsFromDb = buildSpecsFromDb();
-            ManagerSpec managerSpec = specsFromDb.getKey();
-            Map<ResourceGroupIdTemplate, ResourceGroupSpec> resourceGroupSpecs = specsFromDb.getValue();
-            Set<ResourceGroupIdTemplate> changedSpecs = new HashSet<>();
-            Set<ResourceGroupIdTemplate> deletedSpecs = Sets.difference(this.resourceGroupSpecs.keySet(), resourceGroupSpecs.keySet());
-
-            for (Map.Entry<ResourceGroupIdTemplate, ResourceGroupSpec> entry : resourceGroupSpecs.entrySet()) {
-                if (!entry.getValue().sameConfig(this.resourceGroupSpecs.get(entry.getKey()))) {
-                    changedSpecs.add(entry.getKey());
-                }
-            }
-
-            this.resourceGroupSpecs = resourceGroupSpecs;
-            this.resourceGroupInfoHolder.setResourceGroupSpecs(resourceGroupSpecs);
-            this.cpuQuotaPeriod.set(managerSpec.getCpuQuotaPeriod());
-            this.rootGroups.set(managerSpec.getRootGroups());
-            this.selectors.set(buildSelectors(managerSpec));
-            this.resourceGroupInfoHolder.setSelectorSpecs(managerSpec.getSelectors());
-            configureChangedGroups(changedSpecs);
-            disableDeletedGroups(deletedSpecs);
+            DbSpecInfo specsFromDb = DbSpecInfo.buildSpecsFromDb(resourceGroupInfoHolder, dao);
+            DbSpecInfo oldSpecsFromDb = this.specInfo.getAndSet(specsFromDb);
+            configureChangedGroups(specsFromDb.getChangedSpecs(oldSpecsFromDb));
+            disableDeletedGroups(specsFromDb.getDeletedSpecs(oldSpecsFromDb));
         }
         catch (Exception ex) {
             log.error("Error loading resource groups: %s", ex);
+            throw new PrestoException(GENERIC_RESOURCE_GROUP_ERROR, ex);
         }
     }
 
-    // Populate temporary data structures to build resource group specs and selectors from db
-    private synchronized void populateFromDbHelper(Map<Long, ResourceGroupSpecBuilder> recordMap,
-                                                   Set<Long> rootGroupIds,
-                                                   Map<Long, ResourceGroupIdTemplate> resourceGroupIdTemplateMap,
-                                                   Map<Long, Set<Long>> subGroupIdsToBuild)
+    private DbSpecInfo getSpecInfo()
     {
-        List<ResourceGroupSpecBuilder> records = dao.getResourceGroups();
-        for (ResourceGroupSpecBuilder record : records) {
-            recordMap.put(record.getId(), record);
-            if (!record.getParentId().isPresent()) {
-                rootGroupIds.add(record.getId());
-                resourceGroupIdTemplateMap.put(record.getId(), new ResourceGroupIdTemplate(record.getNameTemplate().toString()));
+        return specInfo.get();
+    }
+
+    synchronized void addSelector(String resourceGroupIdTemplate, String userRegex, String sourceRegex)
+    {
+        try {
+            ResourceGroupIdTemplate idTemplate = new ResourceGroupIdTemplate(resourceGroupIdTemplate);
+            long resourceGroupDbId = requireNonNull(getSpecInfo().getDbId(idTemplate),
+                    format("invalid resourceGroupIdTemplate %s", resourceGroupIdTemplate));
+            SelectorSpec spec = new SelectorSpec(
+                    Optional.ofNullable(userRegex).map(Pattern::compile),
+                    Optional.ofNullable(sourceRegex).map(Pattern::compile),
+                    idTemplate);
+            validateSelector(getRootGroups(), spec.getGroup().getSegments());
+            dao.insertSelector(resourceGroupDbId,
+                    userRegex,
+                    sourceRegex);
+            specInfo.set(DbSpecInfo.withAddedSelector(getSpecInfo(), spec));
+        }
+        catch (NullPointerException ex) {
+            throw new PrestoException(RESOURCE_GROUP_NOT_FOUND, ex);
+        }
+        catch (PrestoException ex) {
+            throw ex;
+        }
+        catch (Exception ex) {
+            throw new PrestoException(GENERIC_RESOURCE_GROUP_ERROR, ex);
+        }
+    }
+
+    synchronized void alterSelector(String resourceGroupIdTemplate, String oldUserRegex, String oldSourceRegex, String userRegex, String sourceRegex)
+    {
+        try {
+            ResourceGroupIdTemplate idTemplate = new ResourceGroupIdTemplate(resourceGroupIdTemplate);
+            long resourceGroupDbId = requireNonNull(getSpecInfo().getDbId(idTemplate),
+                    format("invalid resourceGroupIdTemplate %s", resourceGroupIdTemplate));
+            SelectorSpec current = new SelectorSpec(
+                    Optional.ofNullable(oldUserRegex).map(Pattern::compile),
+                    Optional.ofNullable(oldSourceRegex).map(Pattern::compile),
+                    idTemplate);
+            SelectorSpec updated = new SelectorSpec(
+                    Optional.ofNullable(userRegex).map(Pattern::compile),
+                    Optional.ofNullable(sourceRegex).map(Pattern::compile),
+                    idTemplate);
+            if (current.equals(updated)) {
+                return;
+            }
+            dao.updateSelector(
+                    resourceGroupDbId,
+                    oldUserRegex,
+                    oldSourceRegex,
+                    userRegex,
+                    sourceRegex);
+            specInfo.set(DbSpecInfo.withUpdatedSelector(getSpecInfo(), current, updated));
+        }
+        catch (NullPointerException ex) {
+            throw new PrestoException(RESOURCE_GROUP_NOT_FOUND, ex);
+        }
+        catch (PrestoException ex) {
+            throw ex;
+        }
+        catch (Exception ex) {
+            throw new PrestoException(GENERIC_RESOURCE_GROUP_ERROR, ex);
+        }
+    }
+
+    synchronized void removeSelector(String resourceGroupIdTemplate, String userRegex, String sourceRegex)
+    {
+        try {
+            ResourceGroupIdTemplate idTemplate = new ResourceGroupIdTemplate(resourceGroupIdTemplate);
+            long resourceGroupDbId = requireNonNull(getSpecInfo().getDbId(idTemplate),
+                    format("invalid resourceGroupIdTemplate %s", resourceGroupIdTemplate));
+            SelectorSpec spec = new SelectorSpec(
+                    Optional.ofNullable(userRegex).map(Pattern::compile),
+                    Optional.ofNullable(sourceRegex).map(Pattern::compile),
+                    idTemplate);
+            dao.deleteSelector(resourceGroupDbId, userRegex, sourceRegex);
+            specInfo.set(DbSpecInfo.withRemovedSelector(getSpecInfo(), spec));
+        }
+        catch (NullPointerException ex) {
+            throw new PrestoException(RESOURCE_GROUP_NOT_FOUND, ex);
+        }
+        catch (PrestoException ex) {
+            throw ex;
+        }
+        catch (Exception ex) {
+            throw new PrestoException(GENERIC_RESOURCE_GROUP_ERROR, ex);
+        }
+    }
+
+    synchronized void setCpuQuotaPeriod(String cpuQuotaPeriod)
+    {
+        try {
+            Optional<Duration> quotaPeriod = Optional.ofNullable(cpuQuotaPeriod).map(Duration::valueOf);
+            DbSpecInfo current = specInfo.get();
+            DbSpecInfo newInfo = DbSpecInfo.withCpuQuotaPeriod(current, quotaPeriod);
+            if (cpuQuotaPeriod == null) {
+                dao.deleteResourceGroupsGlobalProperties();
             }
             else {
-                subGroupIdsToBuild.computeIfAbsent(record.getParentId().get(), k -> new HashSet<>()).add(record.getId());
+                dao.upsertResourceGroupsGlobalProperties(ResourceGroupGlobalProperties.CPU_QUOTA_PERIOD, cpuQuotaPeriod);
+            }
+            specInfo.set(newInfo);
+        }
+        catch (Exception ex) {
+            throw new PrestoException(INVALID_CPU_QUOTA_PERIOD, ex);
+        }
+    }
+
+    synchronized void addResourceGroup(
+            String resourceGroupIdTemplate,
+            String softMemoryLimit,
+            String hardMemoryLimit,
+            int maxQueued,
+            int maxRunning,
+            Optional<String> schedulingPolicy,
+            Optional<Integer> schedulingWeight,
+            Optional<Boolean> jmxExport,
+            Optional<String> softCpuLimit,
+            Optional<String> hardCpuLimit,
+            Optional<String> queuedTimeout,
+            Optional<String> runningTimeout)
+    {
+        try {
+            ResourceGroupIdTemplate newId = new ResourceGroupIdTemplate(resourceGroupIdTemplate);
+            checkState(getSpecInfo().getSpec(newId) == null, "resource group spec already exists");
+            ResourceGroupNameTemplate nameTemplate = ResourceGroupIdTemplate.getNameTemplate(newId);
+            Optional<ResourceGroupIdTemplate> parentId = ResourceGroupIdTemplate.parentOf(newId);
+            long newDbId = getSpecInfo().getMaxDbId() + 1;
+            Optional<Long> parentDbId = parentId.map(id ->
+                    requireNonNull(getSpecInfo().getDbId(id), format("parent resource group spec %s does not exist", id)));
+            ResourceGroupSpecBuilder specBuilder = new ResourceGroupSpecBuilder(
+                    newDbId,
+                    nameTemplate,
+                    softMemoryLimit,
+                    hardMemoryLimit,
+                    maxQueued,
+                    maxRunning,
+                    schedulingPolicy,
+                    schedulingWeight,
+                    jmxExport,
+                    softCpuLimit,
+                    hardCpuLimit,
+                    queuedTimeout,
+                    runningTimeout,
+                    parentDbId);
+            ResourceGroupSpec spec = specBuilder.build();
+            validateGroupSpec(getCpuQuotaPeriodMillis().isPresent(), spec);
+            Optional<ResourceGroupSpec> parentSpec = parentId.map(id -> getSpecInfo().getSpec(id));
+            if (parentId.isPresent()) {
+                checkState(parentSpec.isPresent(), "Parent resource group spec does not exist");
+                if (parentSpec.get().getSubGroups().isEmpty()) {
+                    // leaf group
+                    // verify there are no queries running or queued since this will no longer be a leaf group
+                    verifyQueueIsEmpty(parentId.get());
+                }
+                parentSpec = parentSpec.map(p -> ResourceGroupSpec.copyAndAddSubGroups(p, ImmutableList.of(spec)));
+                parentSpec.ifPresent(p -> validateResourceGroupSpecSchedulingPolicy(p, spec));
+            }
+            specBuilder.insert(dao);
+            load();
+        }
+        catch (NullPointerException ex) {
+            ex.printStackTrace();
+            throw new PrestoException(RESOURCE_GROUP_NOT_FOUND, ex);
+        }
+        catch (PrestoException ex) {
+            ex.printStackTrace();
+            throw ex;
+        }
+        catch (Exception ex) {
+            throw new PrestoException(GENERIC_RESOURCE_GROUP_ERROR, ex);
+        }
+    }
+
+    private void verifyQueueIsEmpty(ResourceGroupIdTemplate resourceGroupIdTemplate)
+    {
+        // checkState(rootGroupsLock.isWriteLockedByCurrentThread(), "current thread does not hold write lock");
+        List<ResourceGroupId> resourceGroupIds = configuredGroups.getOrDefault(resourceGroupIdTemplate, ImmutableList.of());
+        Optional<QueryQueueInfo> info = Optional.empty();
+        if (!resourceGroupIds.isEmpty()) {
+            ResourceGroup root = getRootGroup(resourceGroupIds.get(0));
+            info = root.getQueryQueueInfo();
+        }
+        if (info.isPresent() && !info.get().getQueryQueue().isEmpty()) {
+            for (ResourceGroupId id : resourceGroupIds) {
+                for (QueryQueueInfo.QueryEntry entry : info.get().getQueryQueue()) {
+                    checkState(!entry.getLeafGroupId().equals(id), "Query queues not empty");
+                }
             }
         }
     }
 
-    private synchronized Map.Entry<ManagerSpec, Map<ResourceGroupIdTemplate, ResourceGroupSpec>> buildSpecsFromDb()
+    private void validateResourceGroupSpecSchedulingPolicy(ResourceGroupSpec parent, ResourceGroupSpec spec)
     {
-        // New resource group spec map
-        Map<ResourceGroupIdTemplate, ResourceGroupSpec> resourceGroupSpecs = new HashMap<>();
-        // Set of root group db ids
-        Set<Long> rootGroupIds = new HashSet<>();
-        // Map of id from db to resource group spec
-        Map<Long, ResourceGroupSpec> resourceGroupSpecMap = new HashMap<>();
-        // Map of id from db to resource group template id
-        Map<Long, ResourceGroupIdTemplate> resourceGroupIdTemplateMap = new HashMap<>();
-        // Map of id from db to resource group spec builder
-        Map<Long, ResourceGroupSpecBuilder> recordMap = new HashMap<>();
-        // Map of subgroup id's not yet built
-        Map<Long, Set<Long>> subGroupIdsToBuild = new HashMap<>();
-        populateFromDbHelper(recordMap, rootGroupIds, resourceGroupIdTemplateMap, subGroupIdsToBuild);
-        // Build up resource group specs from leaf to root
-        for (LinkedList<Long> queue = new LinkedList<>(rootGroupIds); !queue.isEmpty(); ) {
-            Long id = queue.pollFirst();
-            resourceGroupIdTemplateMap.computeIfAbsent(id, k -> {
-                ResourceGroupSpecBuilder builder = recordMap.get(id);
-                return ResourceGroupIdTemplate.forSubGroupNamed(
-                        resourceGroupIdTemplateMap.get(builder.getParentId().get()),
-                        builder.getNameTemplate().toString());
-            });
-            Set<Long> childrenToBuild = subGroupIdsToBuild.getOrDefault(id, ImmutableSet.of());
-            // Add to resource group specs if no more child resource groups are left to build
-            if (childrenToBuild.isEmpty()) {
-                ResourceGroupSpecBuilder builder = recordMap.get(id);
-                ResourceGroupSpec resourceGroupSpec = builder.build();
-                resourceGroupSpecMap.put(id, resourceGroupSpec);
-                // Add newly built spec to spec map
-                resourceGroupSpecs.put(resourceGroupIdTemplateMap.get(id), resourceGroupSpec);
-                // Add this resource group spec to parent subgroups and remove id from subgroup ids to build
-                builder.getParentId().ifPresent(parentId -> {
-                    recordMap.get(parentId).addSubGroup(resourceGroupSpec);
-                    subGroupIdsToBuild.get(parentId).remove(id);
-                });
+        if (isRecursive(spec) || isRecursive(parent)) {
+            checkState(parent.getSchedulingPolicy().equals(spec.getSchedulingPolicy()),
+                    "This scheduling policy must match parent scheduling policy");
+        }
+    }
+
+    private static boolean isRecursive(ResourceGroupSpec spec)
+    {
+        return spec.getSchedulingPolicy().map(SchedulingPolicy::isRecursive).orElse(false);
+    }
+
+    synchronized void alterResourceGroup(
+            String resourceGroupIdTemplate,
+            String softMemoryLimit,
+            String hardMemoryLimit,
+            int maxQueued,
+            int maxRunning,
+            Optional<String> schedulingPolicy,
+            Optional<Integer> schedulingWeight,
+            Optional<Boolean> jmxExport,
+            Optional<String> softCpuLimit,
+            Optional<String> hardCpuLimit,
+            Optional<String> queuedTimeout,
+            Optional<String> runningTimeout)
+    {
+        try {
+            ResourceGroupIdTemplate idTemplate = new ResourceGroupIdTemplate(resourceGroupIdTemplate);
+            ResourceGroupNameTemplate nameTemplate = ResourceGroupIdTemplate.getNameTemplate(idTemplate);
+            ResourceGroupSpec currentSpec = requireNonNull(getSpecInfo().getSpec(idTemplate), "resource group spec does not exist");
+            long dbId = requireNonNull(getSpecInfo().getDbId(idTemplate), "resource group spec does not exist");
+            Optional<ResourceGroupIdTemplate> parentId = ResourceGroupIdTemplate.parentOf(idTemplate);
+            Optional<Long> parentDbId = parentId.map(id ->
+                    requireNonNull(getSpecInfo().getDbId(id), format("parent resource group spec %s does not exist", id)));
+            ResourceGroupSpecBuilder specBuilder = new ResourceGroupSpecBuilder(
+                    dbId,
+                    nameTemplate,
+                    softMemoryLimit,
+                    hardMemoryLimit,
+                    maxQueued,
+                    maxRunning,
+                    schedulingPolicy,
+                    schedulingWeight,
+                    jmxExport,
+                    softCpuLimit,
+                    hardCpuLimit,
+                    queuedTimeout,
+                    runningTimeout,
+                    parentDbId
+            );
+            for (ResourceGroupSpec subGroup : currentSpec.getSubGroups()) {
+                specBuilder.addSubGroup(subGroup);
+            }
+            ResourceGroupSpec updatedSpec = specBuilder.build();
+            if (updatedSpec.sameConfig(currentSpec)) {
+                return;
+            }
+            validateGroupSpec(getCpuQuotaPeriodMillis().isPresent(), updatedSpec);
+            // If scheduling policy is changed reload from db after updates
+            if (parentId.isPresent()) {
+                // Guaranteed to exist since child spec exists
+                ResourceGroupSpec parentSpec = getSpecInfo().getSpec(parentId.get());
+                validateResourceGroupSpecSchedulingPolicy(parentSpec, updatedSpec);
             }
             else {
-                // Add this group back to queue since it still has subgroups to build
-                queue.addFirst(id);
-                // Add this group's subgroups to the queue so that when this id is dequeued again childrenToBuild will be empty
-                queue.addAll(0, childrenToBuild);
+                // root group
+                updateSchedulingPolicy(idTemplate, currentSpec, updatedSpec);
+            }
+            specBuilder.update(dao);
+            load();
+        }
+        catch (NullPointerException ex) {
+            throw new PrestoException(RESOURCE_GROUP_NOT_FOUND, ex);
+        }
+        catch (PrestoException ex) {
+            throw ex;
+        }
+        catch (Exception ex) {
+            throw new PrestoException(GENERIC_RESOURCE_GROUP_ERROR, ex);
+        }
+    }
+
+    private synchronized void updateSchedulingPolicy(ResourceGroupIdTemplate idTemplate, ResourceGroupSpec current, ResourceGroupSpec updated)
+    {
+        checkState(!ResourceGroupIdTemplate.parentOf(idTemplate).isPresent(), "resource group must be a root group");
+        checkState(current.getName().equals(updated.getName()), "resource group specs do not match");
+        Optional<SchedulingPolicy> currentPolicy = current.getSchedulingPolicy();
+        Optional<SchedulingPolicy> updatedPolicy = updated.getSchedulingPolicy();
+        if (!currentPolicy.equals(updatedPolicy)) {
+            if (updatedPolicy.map(SchedulingPolicy::isRecursive).orElse(false) ||
+                    currentPolicy.map(SchedulingPolicy::isRecursive).orElse(false)) {
+                // set policy in db for all subgroups
+                updateDbSchedulingPolicy(idTemplate, updated.getSchedulingPolicy());
             }
         }
+    }
 
-        // Specs are built from db records, validate and return manager spec
-        List<ResourceGroupSpec> rootGroups = rootGroupIds.stream().map(resourceGroupSpecMap::get).collect(Collectors.toList());
+    private synchronized void updateDbSchedulingPolicy(ResourceGroupIdTemplate idTemplate, Optional<SchedulingPolicy> policy)
+    {
+        List<Long> ids = new ArrayList<>();
+        LinkedList<ResourceGroupIdTemplate> stack = new LinkedList<>();
+        stack.push(idTemplate);
+        ids.add(requireNonNull(getSpecInfo().getDbId(idTemplate), "resource group spec does not exist"));
+        while (!stack.isEmpty()) {
+            ResourceGroupIdTemplate currentId = stack.poll();
+            long currentDbId = requireNonNull(getSpecInfo().getDbId(currentId), "resource group spec does not exist");
+            ids.add(currentDbId);
+            ResourceGroupSpec spec = getSpecInfo().getSpec(currentId);
+            for (ResourceGroupSpec subGroup : spec.getSubGroups()) {
+                ResourceGroupIdTemplate subGroupId = ResourceGroupIdTemplate.forSubGroupNamed(currentId, subGroup.getName().toString());
+                stack.push(subGroupId);
+            }
+        }
+        dao.updateSchedulingPolicy(policy.map(SchedulingPolicy::name).orElse(null), ids);
+    }
 
-        List<SelectorSpec> selectors = dao.getSelectors().stream().map(selectorRecord ->
-                new SelectorSpec(selectorRecord.getUserRegex(), selectorRecord.getSourceRegex(),
-                        resourceGroupIdTemplateMap.get(selectorRecord.getResourceGroupId()))
-        ).collect(Collectors.toList());
-        ManagerSpec managerSpec = new ManagerSpec(rootGroups, selectors, getCpuQuotaPeriodFromDb());
-        validateRootGroups(managerSpec);
-        return new AbstractMap.SimpleImmutableEntry<>(managerSpec, resourceGroupSpecs);
+    synchronized void removeResourceGroup(String resourceGroupIdTemplate)
+    {
+        try {
+            // Removes from db, disables by setting maxRunning/Queued to 0 since InternalResourceGroupManager holds a reference to the group
+            ResourceGroupIdTemplate idTemplate = new ResourceGroupIdTemplate(resourceGroupIdTemplate);
+            long dbId = requireNonNull(getSpecInfo().getDbId(idTemplate), "resource group spec does not exist");
+            dao.deleteResourceGroup(dbId);
+            load();
+        }
+        catch (NullPointerException ex) {
+            throw new PrestoException(RESOURCE_GROUP_NOT_FOUND, ex);
+        }
+        catch (PrestoException ex) {
+            throw ex;
+        }
+        catch (Exception ex) {
+            throw new PrestoException(GENERIC_RESOURCE_GROUP_ERROR, ex);
+        }
     }
 
     private synchronized void configureChangedGroups(Set<ResourceGroupIdTemplate> changedSpecs)
@@ -252,8 +485,7 @@ public class DbResourceGroupConfigurationManager
         for (ResourceGroupIdTemplate resourceGroupIdTemplate : changedSpecs) {
             for (ResourceGroupId resourceGroupId : configuredGroups.getOrDefault(resourceGroupIdTemplate, ImmutableList.of())) {
                 synchronized (getRootGroup(resourceGroupId)) {
-                    configureGroup(groups.get(resourceGroupId), resourceGroupSpecs.get(resourceGroupIdTemplate));
-                }
+                    configureGroup(groups.get(resourceGroupId), getSpecInfo().getSpec(resourceGroupIdTemplate));
             }
         }
     }

@@ -51,6 +51,87 @@ public class ResourceGroupSpec
     private final Optional<Duration> hardCpuLimit;
     private final Optional<Duration> queuedTimeout;
     private final Optional<Duration> runningTimeout;
+
+    public static ResourceGroupSpec copyAndAddSubGroups(ResourceGroupSpec spec, List<ResourceGroupSpec> subGroups)
+    {
+        ImmutableList.Builder<ResourceGroupSpec> builder = ImmutableList.builder();
+        builder.addAll(spec.subGroups);
+        builder.addAll(subGroups);
+        return new ResourceGroupSpec(
+                spec.name,
+                spec.softMemoryLimit,
+                spec.hardMemoryLimit,
+                spec.softMemoryLimitFraction,
+                spec.hardMemoryLimitFraction,
+                spec.maxQueued,
+                spec.maxRunning,
+                spec.schedulingPolicy,
+                spec.schedulingWeight,
+                builder.build(),
+                spec.jmxExport,
+                spec.softCpuLimit,
+                spec.hardCpuLimit,
+                spec.queuedTimeout,
+                spec.runningTimeout
+        );
+    }
+
+    public static ResourceGroupSpec copyAndUpdateScheduling(ResourceGroupSpec spec, Optional<SchedulingPolicy> schedulingPolicy)
+    {
+        return new ResourceGroupSpec(
+                spec.name,
+                spec.softMemoryLimit,
+                spec.hardMemoryLimit,
+                spec.softMemoryLimitFraction,
+                spec.hardMemoryLimitFraction,
+                spec.maxQueued,
+                spec.maxRunning,
+                schedulingPolicy,
+                spec.schedulingWeight,
+                spec.subGroups,
+                spec.jmxExport,
+                spec.softCpuLimit,
+                spec.hardCpuLimit,
+                spec.queuedTimeout,
+                spec.runningTimeout
+        );
+    }
+
+    private ResourceGroupSpec(
+            ResourceGroupNameTemplate name,
+            Optional<DataSize> softMemoryLimit,
+            Optional<DataSize> hardMemoryLimit,
+            Optional<Double> softMemoryLimitFraction,
+            Optional<Double> hardMemoryLimitFraction,
+            int maxQueued,
+            int maxRunning,
+            Optional<SchedulingPolicy> schedulingPolicy,
+            Optional<Integer> schedulingWeight,
+            List<ResourceGroupSpec> subGroups,
+            Optional<Boolean> jmxExport,
+            Optional<Duration> softCpuLimit,
+            Optional<Duration> hardCpuLimit,
+            Optional<Duration> queuedTimeout,
+            Optional<Duration> runningTimeout)
+    {
+        this.name = name;
+        this.softMemoryLimit = softMemoryLimit;
+        this.hardMemoryLimit = hardMemoryLimit;
+        this.softMemoryLimitFraction = softMemoryLimitFraction;
+        this.hardMemoryLimitFraction = hardMemoryLimitFraction;
+        this.maxQueued = maxQueued;
+        this.maxRunning = maxRunning;
+        this.schedulingPolicy = schedulingPolicy;
+        this.schedulingWeight = schedulingWeight;
+        this.subGroups = ImmutableList.copyOf(requireNonNull(subGroups, "subGroups is null"));
+        checkDuplicateSubGroup(this.subGroups);
+        this.jmxExport = jmxExport;
+        this.softCpuLimit = softCpuLimit;
+        this.hardCpuLimit = hardCpuLimit;
+        this.queuedTimeout = queuedTimeout;
+        this.runningTimeout = runningTimeout;
+    }
+
     @JsonCreator
     public ResourceGroupSpec(
             @JsonProperty("name") ResourceGroupNameTemplate name,
@@ -106,8 +187,13 @@ public class ResourceGroupSpec
         this.hardMemoryLimit = absoluteSize;
         this.hardMemoryLimitFraction = fraction;
         this.subGroups = ImmutableList.copyOf(requireNonNull(subGroups, "subGroups is null").orElse(ImmutableList.of()));
+        checkDuplicateSubGroup(this.subGroups);
+    }
+
+    private static void checkDuplicateSubGroup(List<ResourceGroupSpec> subGroups)
+    {
         Set<ResourceGroupNameTemplate> names = new HashSet<>();
-        for (ResourceGroupSpec subGroup : this.subGroups) {
+        for (ResourceGroupSpec subGroup : subGroups) {
             checkArgument(!names.contains(subGroup.getName()), "Duplicated sub group: %s", subGroup.getName());
             names.add(subGroup.getName());
         }

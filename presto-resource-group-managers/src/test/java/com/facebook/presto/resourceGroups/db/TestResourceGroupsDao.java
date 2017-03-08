@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
 
+import static com.facebook.presto.resourceGroups.db.ResourceGroupGlobalProperties.CPU_QUOTA_PERIOD;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 
@@ -179,12 +180,12 @@ public class TestResourceGroupsDao
     {
         H2ResourceGroupsDao dao = setup("global_properties");
         dao.createResourceGroupsGlobalPropertiesTable();
-        dao.insertResourceGroupsGlobalProperties("cpu_quota_period", "1h");
+        dao.upsertResourceGroupsGlobalProperties(CPU_QUOTA_PERIOD, "1h");
         ResourceGroupGlobalProperties globalProperties = new ResourceGroupGlobalProperties(Optional.of(Duration.valueOf("1h")));
         ResourceGroupGlobalProperties records = dao.getResourceGroupGlobalProperties().get(0);
         assertEquals(globalProperties, records);
         try {
-            dao.insertResourceGroupsGlobalProperties("invalid_property", "1h");
+            dao.upsertResourceGroupsGlobalProperties("invalid_property", "1h");
         }
         catch (UnableToExecuteStatementException ex) {
             assertTrue(ex.getCause() instanceof JdbcSQLException);

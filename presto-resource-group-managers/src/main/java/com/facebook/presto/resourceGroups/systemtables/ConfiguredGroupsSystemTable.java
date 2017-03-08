@@ -13,43 +13,42 @@
  */
 package com.facebook.presto.resourceGroups.systemtables;
 
-import com.facebook.presto.resourceGroups.SelectorSpec;
+import com.facebook.presto.resourceGroups.ResourceGroupIdTemplate;
 import com.facebook.presto.spi.ColumnMetadata;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorTableMetadata;
 import com.facebook.presto.spi.InMemoryRecordSet;
-import com.facebook.presto.spi.InMemoryRecordSet.Builder;
 import com.facebook.presto.spi.RecordCursor;
 import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.SystemTable;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
 import com.facebook.presto.spi.predicate.TupleDomain;
+import com.facebook.presto.spi.resourceGroups.ResourceGroupId;
 import com.google.common.collect.ImmutableList;
 
 import javax.inject.Inject;
 
-import java.util.regex.Pattern;
+import java.util.List;
+import java.util.Map;
 
 import static com.facebook.presto.spi.SystemTable.Distribution.SINGLE_COORDINATOR;
 import static com.facebook.presto.spi.type.VarcharType.VARCHAR;
 
 import static java.util.Objects.requireNonNull;
 
-public class ResourceGroupSelectorsSystemTable
+public class ConfiguredGroupsSystemTable
         implements SystemTable
 {
     private final ResourceGroupInfoHolder resourceGroupInfoHolder;
-
     private static final ConnectorTableMetadata METADATA = new ConnectorTableMetadata(
-            new SchemaTableName("system", "selectors"),
+            new SchemaTableName("system", "configured_groups"),
             ImmutableList.<ColumnMetadata>builder()
-                .add(new ColumnMetadata("resource_group_id", VARCHAR))
-                .add(new ColumnMetadata("user_regex", VARCHAR))
-                .add(new ColumnMetadata("source_regex", VARCHAR))
-                .build());
+                    .add(new ColumnMetadata("resource_group_template_id", VARCHAR))
+                    .add(new ColumnMetadata("resource_group_id", VARCHAR))
+                    .build());
 
     @Inject
-    public ResourceGroupSelectorsSystemTable(ResourceGroupInfoHolder resourceGroupInfoHolder)
+    public ConfiguredGroupsSystemTable(ResourceGroupInfoHolder resourceGroupInfoHolder)
     {
         this.resourceGroupInfoHolder = requireNonNull(resourceGroupInfoHolder, "resourceGroupInfoHolder is null");
     }
@@ -68,12 +67,12 @@ public class ResourceGroupSelectorsSystemTable
     @Override
     public RecordCursor cursor(ConnectorTransactionHandle transactionHandle, ConnectorSession session, TupleDomain<Integer> constraint)
     {
-        Builder table = InMemoryRecordSet.builder(METADATA);
-        for (SelectorSpec selector : resourceGroupInfoHolder.getSelectorSpecs()) {
-            table.addRow(
-                    selector.getGroup().toString(),
-                    selector.getUserRegex().map(Pattern::toString).orElse(null),
-                    selector.getSourceRegex().map(Pattern::toString).orElse(null));
+        InMemoryRecordSet.Builder table = InMemoryRecordSet.builder(METADATA);
+        for (Map.Entry<ResourceGroupIdTemplate, List<ResourceGroupId>> entry : resourceGroupInfoHolder.getSpecToGroup().entrySet()) {
+            ResourceGroupIdTemplate specId = entry.getKey();
+            for (ResourceGroupId groupId : entry.getValue()) {
+                table.addRow(specId.toString(), groupId.toString());
+            }
         }
         return table.build().cursor();
     }

@@ -67,7 +67,6 @@ import static io.airlift.units.DataSize.Unit.BYTE;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
-import static java.util.concurrent.TimeUnit.SECONDS;
 
 /**
  * Resource groups form a tree, and all access to a group is guarded by the root of the tree.
@@ -80,8 +79,6 @@ public class InternalResourceGroup
         implements ResourceGroup
 {
     public static final int DEFAULT_WEIGHT = 1;
-    private static final Duration DEFAULT_QUEUED_DEADLINE = new Duration(0, SECONDS);
-    public static final Duration DEFAULT_PRIORITY_UPDATE_INTERVAL = new Duration(5, SECONDS);
     private final InternalResourceGroup root;
     private final Optional<InternalResourceGroup> parent;
     private final ResourceGroupId id;
@@ -221,6 +218,9 @@ public class InternalResourceGroup
     public void setSoftMemoryLimit(DataSize limit)
     {
         synchronized (root) {
+            if (limit.toBytes() == softMemoryLimitBytes) {
+                return;
+            }
             if (limit.toBytes() > hardMemoryLimitBytes) {
                 setHardMemoryLimit(limit);
             }
@@ -244,6 +244,9 @@ public class InternalResourceGroup
     public void setHardMemoryLimit(DataSize limit)
     {
         synchronized (root) {
+            if (limit.toBytes() == hardMemoryLimitBytes) {
+                return;
+            }
             if (limit.toBytes() < softMemoryLimitBytes) {
                 setSoftMemoryLimit(limit);
             }
@@ -266,6 +269,9 @@ public class InternalResourceGroup
     public void setSoftCpuLimit(Duration limit)
     {
         synchronized (root) {
+            if (limit.toMillis() == softCpuLimitMillis) {
+                return;
+            }
             if (limit.toMillis() > hardCpuLimitMillis) {
                 setHardCpuLimit(limit);
             }
@@ -289,6 +295,9 @@ public class InternalResourceGroup
     public void setHardCpuLimit(Duration limit)
     {
         synchronized (root) {
+            if (limit.toMillis() == hardCpuLimitMillis) {
+                return;
+            }
             if (limit.toMillis() < softCpuLimitMillis) {
                 setSoftCpuLimit(limit);
             }
@@ -332,6 +341,9 @@ public class InternalResourceGroup
     {
         checkArgument(maxRunningQueries >= 0, "maxRunningQueries is negative");
         synchronized (root) {
+            if (maxRunningQueries == this.maxRunningQueries) {
+                return;
+            }
             boolean oldCanRun = canRunMore();
             this.maxRunningQueries = maxRunningQueries;
             if (canRunMore() != oldCanRun) {
@@ -372,8 +384,11 @@ public class InternalResourceGroup
     {
         checkArgument(weight > 0, "weight must be positive");
         synchronized (root) {
+            if (weight == this.schedulingWeight) {
+                return;
+            }
             this.schedulingWeight = weight;
-            if (parent.isPresent() && parent.get().schedulingPolicy == WEIGHTED && parent.get().eligibleSubGroups.contains(this)) {
+            if (parent.isPresent() && (parent.get().schedulingPolicy == WEIGHTED || parent.get().schedulingPolicy == WEIGHTED_FIFO) && parent.get().eligibleSubGroups.contains(this)) {
                 parent.get().eligibleSubGroups.addOrUpdate(this, weight);
             }
         }
@@ -396,15 +411,13 @@ public class InternalResourceGroup
             }
 
             if (parent.isPresent()) {
-                if (parent.get().schedulingPolicy == QUERY_PRIORITY) {
-                    checkArgument(policy == QUERY_PRIORITY, "Parent of %s uses query priority scheduling, so %s must also", id, id);
-                }
-                else if (parent.get().schedulingPolicy == WEIGHTED_FIFO) {
-                    checkArgument(policy == WEIGHTED_FIFO, "Parent of %s uses deadline scheduling, so %s must also", id, id);
+                if (parent.get().schedulingPolicy.isRecursive()) {
+                    checkArgument(parent.get().schedulingPolicy.equals(policy),
+                            "Parent of %s uses query priority scheduling, so %s must also", id, id);
                 }
             }
 
-            if (policy == QUERY_PRIORITY | policy == WEIGHTED_FIFO) {
+            if (policy.isRecursive()) {
                 for (InternalResourceGroup group : subGroups.values()) {
                     group.setSchedulingPolicy(policy);
                 }
@@ -522,6 +535,9 @@ public class InternalResourceGroup
             this.queuedQueries = queuedQueries;
             if (policy == QUERY_PRIORITY) {
                 checkState(queuedQueries instanceof IndexedPriorityQueue, "Queued queries not ordered");
+            }
+            else if (policy == WEIGHTED_FIFO) {
+                checkState(eligibleSubGroups instanceof IndexedPriorityQueue, "Eligible subgroups not ordered");
             }
         }
 
@@ -788,8 +804,8 @@ public class InternalResourceGroup
             }
             InternalResourceGroup subGroup = new InternalResourceGroup(Optional.of(this), name, jmxExportListener, executor);
             // Sub group must use query priority to ensure ordering
-            if (schedulingPolicy == QUERY_PRIORITY) {
-                subGroup.setSchedulingPolicy(QUERY_PRIORITY);
+            if (schedulingPolicy == QUERY_PRIORITY || schedulingPolicy == WEIGHTED_FIFO) {
+                subGroup.setSchedulingPolicy(schedulingPolicy);
             }
             subGroups.put(name, subGroup);
             return subGroup;
