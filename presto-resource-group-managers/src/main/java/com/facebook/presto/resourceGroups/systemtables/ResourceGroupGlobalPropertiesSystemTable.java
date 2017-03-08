@@ -13,42 +13,42 @@
  */
 package com.facebook.presto.resourceGroups.systemtables;
 
-import com.facebook.presto.resourceGroups.ResourceGroupIdTemplate;
 import com.facebook.presto.spi.ColumnMetadata;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorTableMetadata;
 import com.facebook.presto.spi.InMemoryRecordSet;
+import com.facebook.presto.spi.InMemoryRecordSet.Builder;
 import com.facebook.presto.spi.RecordCursor;
 import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.SystemTable;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
 import com.facebook.presto.spi.predicate.TupleDomain;
-import com.facebook.presto.spi.resourceGroups.ResourceGroupId;
 import com.google.common.collect.ImmutableList;
+import io.airlift.units.Duration;
 
 import javax.inject.Inject;
 
-import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 
+import static com.facebook.presto.resourceGroups.db.ResourceGroupGlobalProperties.CPU_QUOTA_PERIOD;
 import static com.facebook.presto.spi.SystemTable.Distribution.SINGLE_COORDINATOR;
 import static com.facebook.presto.spi.type.VarcharType.VARCHAR;
-
 import static java.util.Objects.requireNonNull;
 
-public class ResourceGroupSpecToGroupSystemTable
+public class ResourceGroupGlobalPropertiesSystemTable
         implements SystemTable
 {
     private final ResourceGroupInfoHolder resourceGroupInfoHolder;
+
     private static final ConnectorTableMetadata METADATA = new ConnectorTableMetadata(
-            new SchemaTableName("system", "spec_to_group"),
+            new SchemaTableName("system", "resource_groups_global_properties"),
             ImmutableList.<ColumnMetadata>builder()
-                    .add(new ColumnMetadata("resource_group_template_id", VARCHAR))
-                    .add(new ColumnMetadata("resource_group_id", VARCHAR))
-                    .build());
+                .add(new ColumnMetadata("name", VARCHAR))
+                .add(new ColumnMetadata("value", VARCHAR))
+                .build());
 
     @Inject
-    public ResourceGroupSpecToGroupSystemTable(ResourceGroupInfoHolder resourceGroupInfoHolder)
+    public ResourceGroupGlobalPropertiesSystemTable(ResourceGroupInfoHolder resourceGroupInfoHolder)
     {
         this.resourceGroupInfoHolder = requireNonNull(resourceGroupInfoHolder, "resourceGroupInfoHolder is null");
     }
@@ -67,13 +67,9 @@ public class ResourceGroupSpecToGroupSystemTable
     @Override
     public RecordCursor cursor(ConnectorTransactionHandle transactionHandle, ConnectorSession session, TupleDomain<Integer> constraint)
     {
-        InMemoryRecordSet.Builder table = InMemoryRecordSet.builder(METADATA);
-        for (Map.Entry<ResourceGroupIdTemplate, List<ResourceGroupId>> entry : resourceGroupInfoHolder.getSpecToGroup().entrySet()) {
-            ResourceGroupIdTemplate specId = entry.getKey();
-            for (ResourceGroupId groupId : entry.getValue()) {
-                table.addRow(specId, groupId);
-            }
-        }
+        Builder table = InMemoryRecordSet.builder(METADATA);
+        Optional<Duration> cpuQuotaPeriod = resourceGroupInfoHolder.getCpuQuotaPeriod();
+        table.addRow(CPU_QUOTA_PERIOD, cpuQuotaPeriod.map(Duration::toString).orElse(null));
         return table.build().cursor();
     }
 }

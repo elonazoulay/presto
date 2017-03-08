@@ -20,7 +20,7 @@ import com.facebook.presto.spi.resourceGroups.ResourceGroup;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupConfigurationManager;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupSelector;
 import com.facebook.presto.spi.resourceGroups.SelectionContext;
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import io.airlift.units.DataSize;
 import io.airlift.units.Duration;
 
@@ -56,33 +56,43 @@ public abstract class AbstractResourceConfigurationManager
     protected abstract Optional<Duration> getCpuQuotaPeriodMillis();
     protected abstract List<ResourceGroupSpec> getRootGroups();
 
-    protected void validateRootGroups(ManagerSpec managerSpec)
+    public static void validateRootGroups(ManagerSpec managerSpec)
     {
         Queue<ResourceGroupSpec> groups = new LinkedList<>(managerSpec.getRootGroups());
+        boolean cpuQuotaPeriodIsPresent = managerSpec.getCpuQuotaPeriod().isPresent();
         while (!groups.isEmpty()) {
             ResourceGroupSpec group = groups.poll();
             groups.addAll(group.getSubGroups());
-            if (group.getSoftCpuLimit().isPresent() || group.getHardCpuLimit().isPresent()) {
-                checkArgument(managerSpec.getCpuQuotaPeriod().isPresent(), "cpuQuotaPeriod must be specified to use cpu limits on group: %s", group.getName());
-            }
-            if (group.getSoftCpuLimit().isPresent()) {
-                checkArgument(group.getHardCpuLimit().isPresent(), "Must specify hard CPU limit in addition to soft limit");
-                checkArgument(group.getSoftCpuLimit().get().compareTo(group.getHardCpuLimit().get()) <= 0, "Soft CPU limit cannot be greater than hard CPU limit");
-            }
+            validateGroupSpec(cpuQuotaPeriodIsPresent, group);
         }
     }
 
-    protected List<ResourceGroupSelector> buildSelectors(ManagerSpec managerSpec)
+    public static void validateGroupSpec(boolean cpuQuotaPeriodIsPresent, ResourceGroupSpec group)
     {
-        ImmutableList.Builder<ResourceGroupSelector> selectors = ImmutableList.builder();
+        validateCpuQuotaPeriodForGroup(cpuQuotaPeriodIsPresent, group);
+        if (group.getSoftCpuLimit().isPresent()) {
+            checkArgument(group.getHardCpuLimit().isPresent(), "Must specify hard CPU limit in addition to soft limit");
+            checkArgument(group.getSoftCpuLimit().get().compareTo(group.getHardCpuLimit().get()) <= 0, "Soft CPU limit cannot be greater than hard CPU limit");
+        }
+    }
+
+    public static void validateCpuQuotaPeriodForGroup(boolean cpuQuotaPeriodIsPresent, ResourceGroupSpec group)
+    {
+        if (group.getSoftCpuLimit().isPresent() || group.getHardCpuLimit().isPresent()) {
+            checkArgument(cpuQuotaPeriodIsPresent, "cpuQuotaPeriod must be specified to use cpu limits on group: %s", group.getName());
+        }
+    }
+    public static Map<SelectorSpec, ResourceGroupSelector> buildSelectors(ManagerSpec managerSpec)
+    {
+        ImmutableMap.Builder<SelectorSpec, ResourceGroupSelector> selectors = ImmutableMap.builder();
         for (SelectorSpec spec : managerSpec.getSelectors()) {
-            validateSelectors(managerSpec.getRootGroups(), spec.getGroup().getSegments());
-            selectors.add(new StaticSelector(spec.getUserRegex(), spec.getSourceRegex(), spec.getGroup()));
+            validateSelector(managerSpec.getRootGroups(), spec.getGroup().getSegments());
+            selectors.put(spec, new StaticSelector(spec.getUserRegex(), spec.getSourceRegex(), spec.getGroup()));
         }
         return selectors.build();
     }
 
-    private void validateSelectors(List<ResourceGroupSpec> groups, List<ResourceGroupNameTemplate> selectorGroups)
+    public static void validateSelector(List<ResourceGroupSpec> groups, List<ResourceGroupNameTemplate> selectorGroups)
     {
         StringBuilder fullyQualifiedGroupName = new StringBuilder();
         while (!selectorGroups.isEmpty()) {

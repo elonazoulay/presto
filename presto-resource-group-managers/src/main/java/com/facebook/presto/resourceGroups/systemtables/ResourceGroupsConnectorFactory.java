@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.resourceGroups.systemtables;
 
+import com.facebook.presto.resourceGroups.db.ConfigurationNotifier;
 import com.facebook.presto.spi.ConnectorHandleResolver;
 import com.facebook.presto.spi.connector.Connector;
 import com.facebook.presto.spi.connector.ConnectorContext;
@@ -30,11 +31,13 @@ public class ResourceGroupsConnectorFactory
     private static final String name = "resource-group-managers";
     private final QueryQueueCache queryQueueCache;
     private final ResourceGroupInfoHolder resourceGroupInfoHolder;
+    private final ConfigurationNotifier configurationNotifier;
 
-    public ResourceGroupsConnectorFactory(QueryQueueCache queryQueueCache, ResourceGroupInfoHolder resourceGroupInfoHolder)
+    public ResourceGroupsConnectorFactory(QueryQueueCache queryQueueCache, ResourceGroupInfoHolder resourceGroupInfoHolder, ConfigurationNotifier configurationNotifier)
     {
         this.queryQueueCache = requireNonNull(queryQueueCache, "queryQueueCache is null");
         this.resourceGroupInfoHolder = requireNonNull(resourceGroupInfoHolder, "resourceGroupInfoHolder is null");
+        this.configurationNotifier = requireNonNull(configurationNotifier, "configurationNotifier is null");
     }
 
     @Override
@@ -56,8 +59,8 @@ public class ResourceGroupsConnectorFactory
             Bootstrap app = new Bootstrap(
                     new ResourceGroupsConnectorModule(),
                     binder -> binder.bind(QueryQueueCache.class).toInstance(queryQueueCache),
-                    binder -> binder.bind(ResourceGroupInfoHolder.class).toInstance(resourceGroupInfoHolder)
-            );
+                    binder -> binder.bind(ResourceGroupInfoHolder.class).toInstance(resourceGroupInfoHolder),
+                    binder -> binder.bind(ConfigurationNotifier.class).toInstance(configurationNotifier));
             Injector injector = app
                     .strictConfig()
                     .doNotInitializeLogging()

@@ -19,10 +19,12 @@ import com.facebook.presto.resourceGroups.SelectorSpec;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupId;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import io.airlift.units.Duration;
 
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -33,8 +35,8 @@ public class ResourceGroupInfoHolder
 {
     private final AtomicReference<List<SelectorSpec>> selectorSpecs = new AtomicReference<>(ImmutableList.of());
     private final AtomicReference<Map<ResourceGroupIdTemplate, ResourceGroupSpec>> resourceGroupSpecs = new AtomicReference<>(ImmutableMap.of());
-    private final Map<ResourceGroupId, ResourceGroupSpec> groups = new ConcurrentHashMap<>();
     private final ConcurrentMap<ResourceGroupIdTemplate, List<ResourceGroupId>> specToGroup = new ConcurrentHashMap<>();
+    private final AtomicReference<Optional<Duration>> cpuQuotaPeriod = new AtomicReference<>(Optional.empty());
 
     public void setSelectorSpecs(List<SelectorSpec> selectorSpecs)
     {
@@ -56,16 +58,6 @@ public class ResourceGroupInfoHolder
         return resourceGroupSpecs.get();
     }
 
-    public void setConfiguredGroup(ResourceGroupId groupId, ResourceGroupSpec spec)
-    {
-        groups.put(groupId, spec);
-    }
-
-    public Map<ResourceGroupId, ResourceGroupSpec> getConfiguredGroups()
-    {
-        return ImmutableMap.copyOf(groups);
-    }
-
     public void addGroupToSpec(ResourceGroupIdTemplate specId, ResourceGroupId groupId)
     {
         specToGroup.computeIfAbsent(specId, v -> new LinkedList<>()).add(groupId);
@@ -74,5 +66,15 @@ public class ResourceGroupInfoHolder
     public Map<ResourceGroupIdTemplate, List<ResourceGroupId>> getSpecToGroup()
     {
         return ImmutableMap.copyOf(specToGroup);
+    }
+
+    public void setCpuQuotaPeriod(Optional<Duration> cpuQuotaPeriod)
+    {
+        this.cpuQuotaPeriod.set(cpuQuotaPeriod);
+    }
+
+    public Optional<Duration> getCpuQuotaPeriod()
+    {
+        return cpuQuotaPeriod.get();
     }
 }

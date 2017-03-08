@@ -34,12 +34,14 @@ public class DbResourceGroupConfigurationManagerFactory
     private final ClassLoader classLoader;
     private final QueryQueueCache queryQueueCache;
     private final ResourceGroupInfoHolder resourceGroupInfoHolder;
+    private final ConfigurationNotifier configurationNotifier;
 
-    public DbResourceGroupConfigurationManagerFactory(ClassLoader classLoader, QueryQueueCache queryQueueCache, ResourceGroupInfoHolder resourceGroupInfoHolder)
+    public DbResourceGroupConfigurationManagerFactory(ClassLoader classLoader, QueryQueueCache queryQueueCache, ResourceGroupInfoHolder resourceGroupInfoHolder, ConfigurationNotifier configurationNotifier)
     {
         this.classLoader = requireNonNull(classLoader, "classLoader is null");
         this.queryQueueCache = requireNonNull(queryQueueCache, "queryQueueCache is null");
         this.resourceGroupInfoHolder = requireNonNull(resourceGroupInfoHolder, "resourceGroupInfoHolder is null");
+        this.configurationNotifier = requireNonNull(configurationNotifier, "configurationNotifier is null");
     }
 
     @Override
@@ -57,6 +59,7 @@ public class DbResourceGroupConfigurationManagerFactory
                     new DbResourceGroupsModule(),
                     binder -> binder.bind(QueryQueueCache.class).toInstance(queryQueueCache),
                     binder -> binder.bind(ResourceGroupInfoHolder.class).toInstance(resourceGroupInfoHolder),
+                    binder -> binder.bind(ConfigurationNotifier.class).toInstance(configurationNotifier),
                     binder -> binder.bind(ClusterMemoryPoolManager.class).toInstance(context.getMemoryPoolManager())
             );
 

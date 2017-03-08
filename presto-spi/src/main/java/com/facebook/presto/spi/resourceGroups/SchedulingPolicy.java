@@ -15,8 +15,22 @@ package com.facebook.presto.spi.resourceGroups;
 
 public enum SchedulingPolicy
 {
-    FAIR,
-    WEIGHTED,
-    QUERY_PRIORITY,
-    WEIGHTED_FIFO
+    FAIR(false),
+    WEIGHTED(false),
+    QUERY_PRIORITY(true),
+    WEIGHTED_FIFO(true);
+
+    private final boolean isRecursive;
+    SchedulingPolicy(boolean isRecursive)
+    {
+        this.isRecursive = isRecursive;
+    }
+
+    /*
+     * This query policy is required to be shared from root to leaf resource group
+     */
+    public boolean isRecursive()
+    {
+        return isRecursive;
+    }
 }

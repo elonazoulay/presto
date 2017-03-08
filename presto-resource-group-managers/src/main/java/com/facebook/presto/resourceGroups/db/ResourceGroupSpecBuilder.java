@@ -125,6 +125,44 @@ public class ResourceGroupSpecBuilder
                 runningTimeout);
     }
 
+    public void insert(ResourceGroupsDao dao)
+    {
+        dao.insertResourceGroup(
+                id,
+                nameTemplate.toString(),
+                softMemoryLimit,
+                hardMemoryLimit,
+                maxQueued,
+                maxRunning,
+                schedulingPolicy.orElse(null),
+                schedulingWeight.orElse(null),
+                jmxExport.orElse(null),
+                softCpuLimit.map(Duration::toString).orElse(null),
+                hardCpuLimit.map(Duration::toString).orElse(null),
+                queuedTimeout.map(Duration::toString).orElse(null),
+                runningTimeout.map(Duration::toString).orElse(null),
+                parentId.orElse(null));
+    }
+
+    public void update(ResourceGroupsDao dao)
+    {
+        dao.updateResourceGroup(
+                id,
+                nameTemplate.toString(),
+                softMemoryLimit,
+                hardMemoryLimit,
+                maxQueued,
+                maxRunning,
+                schedulingPolicy.orElse(null),
+                schedulingWeight.orElse(null),
+                jmxExport.orElse(null),
+                softCpuLimit.map(Duration::toString).orElse(null),
+                hardCpuLimit.map(Duration::toString).orElse(null),
+                queuedTimeout.map(Duration::toString).orElse(null),
+                runningTimeout.map(Duration::toString).orElse(null),
+                parentId.orElse(null));
+    }
+
     public static class Mapper
             implements ResultSetMapper<ResourceGroupSpecBuilder>
     {
