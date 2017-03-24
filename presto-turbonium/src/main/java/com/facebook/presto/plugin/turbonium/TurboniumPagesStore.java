@@ -82,6 +82,7 @@ public class TurboniumPagesStore
             throw new PrestoException(MISSING_DATA, "Failed to find table on a worker.");
         }
         page.compact();
+        page.assureLoaded();
         long newSize = currentBytes + page.getRetainedSizeInBytes();
         long newTableSize = tableSizes.get(tableId) + page.getRetainedSizeInBytes();
         long maxBytes = getMaxBytes();
@@ -122,7 +123,8 @@ public class TurboniumPagesStore
     {
         long sizeBytes = pages.get(tableId).stream().mapToLong(Page::getRetainedSizeInBytes).sum();
         long rowCount = pages.get(tableId).stream().mapToLong(Page::getPositionCount).sum();
-        return new SizeInfo(rowCount, sizeBytes);
+        long pagesCount = pages.get(tableId).size();
+        return new SizeInfo(rowCount, sizeBytes, pagesCount);
     }
 
     public synchronized boolean contains(Long tableId)
@@ -175,11 +177,12 @@ public class TurboniumPagesStore
     {
         private final long rowCount;
         private final long byteSize;
-
-        public SizeInfo(long rowCount, long byteSize)
+        private final long pageCount;
+        public SizeInfo(long rowCount, long byteSize, long pageCount)
         {
             this.rowCount = rowCount;
             this.byteSize = byteSize;
+            this.pageCount = pageCount;
         }
 
         public long getRowCount()
@@ -190,6 +193,11 @@ public class TurboniumPagesStore
         public long getSizeBytes()
         {
             return byteSize;
+        }
+
+        public long getPageCount()
+        {
+            return pageCount;
         }
     }
 }

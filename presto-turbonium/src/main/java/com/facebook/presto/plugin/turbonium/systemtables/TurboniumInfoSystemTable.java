@@ -53,6 +53,7 @@ public class TurboniumInfoSystemTable
                         new ColumnMetadata("node_id", VARCHAR),
                         new ColumnMetadata("schema_name", VARCHAR),
                         new ColumnMetadata("table_id", BIGINT),
+                        new ColumnMetadata("pages", BIGINT),
                         new ColumnMetadata("rows", BIGINT),
                         new ColumnMetadata("size_bytes", BIGINT)));
     }
@@ -79,6 +80,7 @@ public class TurboniumInfoSystemTable
                     nodeId,
                     TurboniumMetadata.SCHEMA_NAME,
                     tableId,
+                    sizeInfo.getPageCount(),
                     sizeInfo.getRowCount(),
                     sizeInfo.getSizeBytes()
             );
