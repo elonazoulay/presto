@@ -486,6 +486,7 @@ public class DbResourceGroupConfigurationManager
             for (ResourceGroupId resourceGroupId : configuredGroups.getOrDefault(resourceGroupIdTemplate, ImmutableList.of())) {
                 synchronized (getRootGroup(resourceGroupId)) {
                     configureGroup(groups.get(resourceGroupId), getSpecInfo().getSpec(resourceGroupIdTemplate));
+                }
             }
         }
     }

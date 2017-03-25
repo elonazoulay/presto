@@ -16,10 +16,12 @@ package com.facebook.presto.resourceGroups.systemtables;
 import com.facebook.presto.resourceGroups.ResourceGroupIdTemplate;
 import com.facebook.presto.resourceGroups.ResourceGroupSpec;
 import com.facebook.presto.resourceGroups.SelectorSpec;
+import com.facebook.presto.spi.resourceGroups.ResourceGroupId;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import io.airlift.units.Duration;
 
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;

@@ -51,7 +51,6 @@ import java.util.function.BiConsumer;
 import static com.facebook.presto.SystemSessionProperties.getQueryPriority;
 import static com.facebook.presto.spi.ErrorType.USER_ERROR;
 import static com.facebook.presto.spi.StandardErrorCode.EXCEEDED_MEMORY_LIMIT;
-import static com.facebook.presto.spi.StandardErrorCode.QUERY_QUEUE_FULL;
 import static com.facebook.presto.spi.resourceGroups.ResourceGroupState.CAN_QUEUE;
 import static com.facebook.presto.spi.resourceGroups.ResourceGroupState.CAN_RUN;
 import static com.facebook.presto.spi.resourceGroups.ResourceGroupState.FULL;
