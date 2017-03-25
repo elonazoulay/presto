@@ -125,6 +125,7 @@ public class DbResourceGroupConfigurationManager
         }
         synchronized (getRootGroup(group.getId())) {
             configureGroup(group, entry.getValue());
+            resourceGroupInfoHolder.addGroupToSpec(entry.getKey(), group.getId());
         }
     }
 
@@ -486,6 +487,7 @@ public class DbResourceGroupConfigurationManager
             for (ResourceGroupId resourceGroupId : configuredGroups.getOrDefault(resourceGroupIdTemplate, ImmutableList.of())) {
                 synchronized (getRootGroup(resourceGroupId)) {
                     configureGroup(groups.get(resourceGroupId), getSpecInfo().getSpec(resourceGroupIdTemplate));
+                }
             }
         }
     }
