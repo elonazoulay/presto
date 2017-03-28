@@ -14,9 +14,11 @@
 package com.facebook.presto.plugin.turbonium;
 
 import com.facebook.presto.plugin.turbonium.config.TurboniumConfigManager;
+import com.facebook.presto.plugin.turbonium.storage.Table;
 import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.block.Block;
+import com.facebook.presto.spi.type.Type;
 import com.google.common.collect.ImmutableList;
 import io.airlift.log.Logger;
 
@@ -24,18 +26,18 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import javax.inject.Inject;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static com.facebook.presto.plugin.turbonium.TurboniumErrorCode.MEMORY_LIMIT_EXCEEDED;
-import static com.facebook.presto.plugin.turbonium.TurboniumErrorCode.MISSING_DATA;
 import static com.facebook.presto.plugin.turbonium.TurboniumErrorCode.TABLE_SIZE_PER_NODE_EXCEEDED;
 import static java.lang.String.format;
+import static java.util.Objects.requireNonNull;
 
 @ThreadSafe
 public class TurboniumPagesStore
@@ -56,6 +58,12 @@ public class TurboniumPagesStore
     private final Map<Long, List<Page>> pages = new HashMap<>();
 
     @GuardedBy("this")
+    private final Map<Long, Table.Builder> tableBuilder = new HashMap<>();
+
+    @GuardedBy("this")
+    private final Map<Long, Table> tables = new HashMap<>();
+
+    @GuardedBy("this")
     private final Map<Long, Long> tableSizes = new HashMap<>();
 
     private long getMaxBytes()
@@ -68,21 +76,22 @@ public class TurboniumPagesStore
         return configManager.getConfig().getMaxTableSizePerNode().toBytes();
     }
 
-    public synchronized void initialize(String tableName, long tableId)
+    public synchronized void initialize(long tableId, TurboniumTableHandle tableHandle)
     {
         if (!pages.containsKey(tableId)) {
-            pages.put(tableId, new ArrayList<>());
+            // pages.put(tableId, new ArrayList<>());
+            tableBuilder.put(tableId, Table.builder(extractTypes(tableHandle)));
             tableSizes.put(tableId, 0L);
         }
     }
 
     public synchronized void add(Long tableId, Page page)
     {
-        if (!contains(tableId)) {
+        /*if (!contains(tableId)) {
             throw new PrestoException(MISSING_DATA, "Failed to find table on a worker.");
         }
+        */
         page.compact();
-        page.assureLoaded();
         long newSize = currentBytes + page.getRetainedSizeInBytes();
         long newTableSize = tableSizes.get(tableId) + page.getRetainedSizeInBytes();
         long maxBytes = getMaxBytes();
@@ -95,23 +104,31 @@ public class TurboniumPagesStore
         }
         currentBytes = newSize;
         tableSizes.put(tableId, newSize);
+        /*
         List<Page> tablePages = pages.get(tableId);
         tablePages.add(page);
+        */
+        tableBuilder.get(tableId).appendPage(page);
     }
 
     public synchronized List<Page> getPages(Long tableId, int partNumber, int totalParts, List<Integer> columnIndexes)
     {
+        /*
         if (!contains(tableId)) {
             throw new PrestoException(MISSING_DATA, "Failed to find table on a worker.");
         }
-
-        List<Page> tablePages = pages.get(tableId);
+        */
+        Table table = requireNonNull(tables.get(tableId), "Failed to find table on worker");
+        table.getPages(partNumber, totalParts, columnIndexes);
+        return table.getPages(partNumber, totalParts, columnIndexes);
+        /*
         ImmutableList.Builder<Page> partitionedPages = ImmutableList.builder();
 
         for (int i = partNumber; i < tablePages.size(); i += totalParts) {
             partitionedPages.add(getColumns(tablePages.get(i), columnIndexes));
         }
-        return partitionedPages.build();
+        return partitionedPages.finishCreate();
+        */
     }
 
     public synchronized List<Long> listTableIds()
@@ -161,6 +178,12 @@ public class TurboniumPagesStore
         }
     }
 
+    public synchronized void finishCreate(long tableId)
+    {
+        Table.Builder builder = requireNonNull(tableBuilder.remove(tableId), "table not found");
+        tables.put(tableId, builder.build());
+    }
+
     private static Page getColumns(Page page, List<Integer> columnIndexes)
     {
         Block[] blocks = page.getBlocks();
@@ -169,7 +192,6 @@ public class TurboniumPagesStore
         for (int i = 0; i < columnIndexes.size(); i++) {
             outputBlocks[i] = blocks[columnIndexes.get(i)];
         }
-
         return new Page(page.getPositionCount(), outputBlocks);
     }
 
@@ -199,5 +221,12 @@ public class TurboniumPagesStore
         {
             return pageCount;
         }
+    }
+
+    private static List<Type> extractTypes(TurboniumTableHandle tableHandle)
+    {
+        return tableHandle.getColumnHandles().stream()
+                .map(TurboniumColumnHandle::getColumnType)
+                .collect(Collectors.toList());
     }
 }
