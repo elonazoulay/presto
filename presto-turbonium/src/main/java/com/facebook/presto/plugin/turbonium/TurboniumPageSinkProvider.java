@@ -58,7 +58,7 @@ public class TurboniumPageSinkProvider
         checkState(turboniumOutputTableHandle.getActiveTableIds().contains(tableId));
         configManager.setFromConfig(turboniumOutputTableHandle.getMemoryConfig());
         pagesStore.cleanUp(turboniumOutputTableHandle.getActiveTableIds());
-        pagesStore.initialize(tableHandle.getTableName(), tableId);
+        pagesStore.initialize(tableId, tableHandle);
         return new MemoryPageSink(pagesStore, tableId);
     }
 
@@ -73,6 +73,7 @@ public class TurboniumPageSinkProvider
         pagesStore.cleanUp(turboniumInsertTableHandle.getActiveTableIds());
         return new MemoryPageSink(pagesStore, tableId);
     }
+
 
     private static class MemoryPageSink
             implements ConnectorPageSink
@@ -96,6 +97,7 @@ public class TurboniumPageSinkProvider
         @Override
         public CompletableFuture<Collection<Slice>> finish()
         {
+            pagesStore.finishCreate(tableId);
             return completedFuture(ImmutableList.of());
         }
 
