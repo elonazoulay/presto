@@ -69,6 +69,7 @@ public class FeaturesConfig
     private int re2JDfaRetries = 5;
     private RegexLibrary regexLibrary = JONI;
     private boolean spillEnabled;
+    private boolean globallyDisableSpill = true;
     private DataSize operatorMemoryLimitBeforeSpill = new DataSize(4, DataSize.Unit.MEGABYTE);
     private Path spillerSpillPath = Paths.get(System.getProperty("java.io.tmpdir"), "presto", "spills");
     private int spillerThreads = 4;
@@ -320,6 +321,18 @@ public class FeaturesConfig
     public FeaturesConfig setSpillEnabled(boolean spillEnabled)
     {
         this.spillEnabled = spillEnabled;
+        return this;
+    }
+
+    public boolean isSpillGloballyDisabled()
+    {
+        return globallyDisableSpill;
+    }
+
+    @Config("experimental.globally-disable-spill")
+    public FeaturesConfig setSpillGloballyDisabled(boolean globallyDisableSpill)
+    {
+        this.globallyDisableSpill = globallyDisableSpill;
         return this;
     }
 
