@@ -41,6 +41,13 @@ public interface ResourceGroup
     Duration getSoftCpuLimit();
 
     /**
+     * Threshold where a query will be killed
+     */
+    void setMaxMemoryPerQuery(DataSize limit);
+
+    DataSize getMaxMemoryPerQuery();
+
+    /**
      * Threshold on total distributed CPU usage after which max running queries will be reduced.
      */
     void setSoftCpuLimit(Duration limit);

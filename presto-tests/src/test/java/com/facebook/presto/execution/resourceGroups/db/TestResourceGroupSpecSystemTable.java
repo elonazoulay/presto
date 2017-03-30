@@ -37,15 +37,15 @@ public class TestResourceGroupSpecSystemTable
             assertEquals(result.getRowCount(), 6);
             for (MaterializedRow row : result.getMaterializedRows()) {
                 if (row.getField(0).toString().equals("global.user-${USER}.dashboard-${USER}")) {
-                    assertTrue(row.getField(7) == null);
+                    assertTrue(row.getField(8) == null);
                     break;
                 }
             }
-            updateResourceGroupQuery(queryRunner, "global.user-${USER}.dashboard-${USER}", "1MB", "1GB", 1, 2, null, null, true, null, null, null, null);
+            updateResourceGroupQuery(queryRunner, "global.user-${USER}.dashboard-${USER}", "1MB", "1GB", "20GB", 1, 2, null, null, true, null, null, null, null);
             result = getResourceGroupSpecsQuery(queryRunner);
             for (MaterializedRow row : result.getMaterializedRows()) {
                 if (row.getField(0).toString().equals("global.user-${USER}.dashboard-${USER}")) {
-                    assertTrue((Boolean) row.getField(7));
+                    assertTrue((Boolean) row.getField(8));
                     break;
                 }
             }

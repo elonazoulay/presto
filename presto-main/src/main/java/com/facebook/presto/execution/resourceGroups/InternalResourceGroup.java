@@ -98,6 +98,8 @@ public class InternalResourceGroup
     @GuardedBy("root")
     private long hardMemoryLimitBytes = Long.MAX_VALUE;
     @GuardedBy("root")
+    private long maxMemoryPerQueryBytes = Long.MAX_VALUE;
+    @GuardedBy("root")
     private int maxRunningQueries;
     @GuardedBy("root")
     private int maxQueuedQueries;
@@ -256,6 +258,23 @@ public class InternalResourceGroup
             }
         }
     }
+
+    @Override
+    public DataSize getMaxMemoryPerQuery()
+    {
+        synchronized (root) {
+            return new DataSize(maxMemoryPerQueryBytes, BYTE);
+        }
+    }
+
+    @Override
+    public void setMaxMemoryPerQuery(DataSize limit)
+    {
+        synchronized (root) {
+            this.maxMemoryPerQueryBytes = limit.toBytes();
+        }
+    }
+
     @Override
     public Duration getSoftCpuLimit()
     {
@@ -803,7 +822,7 @@ public class InternalResourceGroup
             }
             InternalResourceGroup subGroup = new InternalResourceGroup(Optional.of(this), name, jmxExportListener, executor);
             // Sub group must use query priority to ensure ordering
-            if (schedulingPolicy == QUERY_PRIORITY || schedulingPolicy == WEIGHTED_FIFO) {
+            if (schedulingPolicy.isRecursive()) {
                 subGroup.setSchedulingPolicy(schedulingPolicy);
             }
             subGroups.put(name, subGroup);
@@ -968,14 +987,22 @@ public class InternalResourceGroup
         }
     }
 
-    protected void enforceHardMemoryLimit()
+    protected void enforceMemoryLimits()
     {
         checkState(Thread.holdsLock(root), "Must hold lock to enforce hard memory limit");
         synchronized (root) {
             if (subGroups.isEmpty()) {
+                AtomicLong memoryReclaimed = new AtomicLong();
+                // Kill all queries which exceed max memory per query
+                ImmutableList.copyOf(runningQueries).stream()
+                        .filter(queryExecution -> queryExecution.getTotalMemoryReservation() > maxMemoryPerQueryBytes)
+                        .forEach(queryExecution -> {
+                            memoryReclaimed.addAndGet(queryExecution.getTotalMemoryReservation());
+                            queryExecution.fail(new PrestoException(EXCEEDED_MEMORY_LIMIT, "Query exceeded max memory per query resource group limit"));
+                        });
+                cachedMemoryUsageBytes -= memoryReclaimed.getAndSet(0L);
                 if (cachedMemoryUsageBytes > hardMemoryLimitBytes) {
-                    AtomicLong memoryReclaimed = new AtomicLong();
-                    // Kill queries which exceed the hard memory limit
+                    // Kill huge queries which exceed the hard memory limit
                     ImmutableList.copyOf(runningQueries).stream()
                             .filter(queryExecution -> queryExecution.getTotalMemoryReservation() > hardMemoryLimitBytes)
                             .forEach(queryExecution -> {
@@ -1001,7 +1028,7 @@ public class InternalResourceGroup
             else {
                 for (Iterator<InternalResourceGroup> iterator = dirtySubGroups.iterator(); iterator.hasNext(); ) {
                     InternalResourceGroup subGroup = iterator.next();
-                    subGroup.enforceHardMemoryLimit();
+                    subGroup.enforceMemoryLimits();
                 }
             }
         }
@@ -1200,7 +1227,7 @@ public class InternalResourceGroup
         {
             internalRefreshStats();
             enforceTimeouts();
-            enforceHardMemoryLimit();
+            enforceMemoryLimits();
             while (internalStartNext()) {
                 // start all the queries we can
             }

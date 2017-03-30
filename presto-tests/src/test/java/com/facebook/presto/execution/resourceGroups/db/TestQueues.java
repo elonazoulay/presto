@@ -82,8 +82,8 @@ public class TestQueues
             waitForQueryState(queryRunner, secondDashboardQuery, QUEUED);
             assertEquals(queryManager.getStats().getRunningQueries(), 1);
             // Update db to allow for 1 more running query in dashboard resource group
-            updateResourceGroupQuery(queryRunner, "global.user-${USER}", "1MB", "1GB", 3, 4, null, null, null, null, null, null, null);
-            updateResourceGroupQuery(queryRunner, "global.user-${USER}.dashboard-${USER}", "1MB", "1GB", 1, 2, null, null, null, null, null, null, null);
+            updateResourceGroupQuery(queryRunner, "global.user-${USER}", "1MB", "1GB", "20GB", 3, 4, null, null, null, null, null, null, null);
+            updateResourceGroupQuery(queryRunner, "global.user-${USER}.dashboard-${USER}", "1MB", "1GB", "20GB", 1, 2, null, null, null, null, null, null, null);
             waitForQueryState(queryRunner, secondDashboardQuery, RUNNING);
             QueryId thirdDashboardQuery = createQuery(queryRunner, newDashboardSession(), LONG_LASTING_QUERY);
             waitForQueryState(queryRunner, thirdDashboardQuery, QUEUED);
@@ -103,7 +103,8 @@ public class TestQueues
             waitForQueryState(queryRunner, firstDashboardQuery, FAILED);
             waitForQueryState(queryRunner, thirdDashboardQuery, RUNNING);
             assertEquals(queryManager.getStats().getRunningQueries(), 4);
-            assertEquals(queryManager.getStats().getCompletedQueries().getTotalCount(), 1);
+            // 1 failed query + 2 procedure calls
+            assertEquals(queryManager.getStats().getCompletedQueries().getTotalCount(), 3);
         }
     }
 
@@ -136,15 +137,15 @@ public class TestQueues
             waitForQueryState(queryRunner, thirdDashboardQuery, FAILED);
 
             // Allow one more query to run and resubmit third query
-            updateResourceGroupQuery(queryRunner, "global.user-${USER}", "1MB", "1GB", 3, 4, null, null, null, null, null, null, null);
-            updateResourceGroupQuery(queryRunner, "global.user-${USER}.dashboard-${USER}", "1MB", "1GB", 1, 2, null, null, null, null, null, null, null);
+            updateResourceGroupQuery(queryRunner, "global.user-${USER}", "1MB", "1GB", "20GB", 3, 4, null, null, null, null, null, null, null);
+            updateResourceGroupQuery(queryRunner, "global.user-${USER}.dashboard-${USER}", "1MB", "20GB", "1GB", 1, 2, null, null, null, null, null, null, null);
 
             waitForQueryState(queryRunner, secondDashboardQuery, RUNNING);
             thirdDashboardQuery = createQuery(queryRunner, newDashboardSession(), LONG_LASTING_QUERY);
             waitForQueryState(queryRunner, thirdDashboardQuery, QUEUED);
 
             // Lower running queries in dashboard resource groups and wait until groups are reconfigured
-            updateResourceGroupQuery(queryRunner, "global.user-${USER}.dashboard-${USER}", "1MB", "1GB", 1, 1, null, null, null, null, null, null, null);
+            updateResourceGroupQuery(queryRunner, "global.user-${USER}.dashboard-${USER}", "1MB", "1GB", "20GB", 1, 1, null, null, null, null, null, null, null);
 
             // Cancel query and verify that third query is still queued
             cancelQuery(queryRunner, firstDashboardQuery);
@@ -182,7 +183,7 @@ public class TestQueues
             throws Exception
     {
         try (DistributedQueryRunner queryRunner = createQueryRunner()) {
-            updateResourceGroupQuery(queryRunner, "global.user-${USER}.dashboard-${USER}", "1MB", "1GB", 1, 1, null, null, null, null, null, null, "3s");
+            updateResourceGroupQuery(queryRunner, "global.user-${USER}.dashboard-${USER}", "1MB", "1GB", "20GB", 1, 1, null, null, null, null, null, null, "3s");
             QueryId firstDashboardQuery = createQuery(queryRunner, newDashboardSession(), LONG_LASTING_QUERY);
             waitForQueryState(queryRunner, firstDashboardQuery, FAILED);
         }
@@ -193,7 +194,7 @@ public class TestQueues
             throws Exception
     {
         try (DistributedQueryRunner queryRunner = createQueryRunner()) {
-            updateResourceGroupQuery(queryRunner, "global.user-${USER}.dashboard-${USER}", "1MB", "1GB", 1, 1, null, null, null, null, null, "5s", null);
+            updateResourceGroupQuery(queryRunner, "global.user-${USER}.dashboard-${USER}", "1MB", "1GB", "20GB", 1, 1, null, null, null, null, null, "5s", null);
             QueryId firstDashboardQuery = createQuery(queryRunner, newDashboardSession(), LONG_LASTING_QUERY);
             waitForQueryState(queryRunner, firstDashboardQuery, RUNNING);
             QueryId secondDashboardQuery = createQuery(queryRunner, newDashboardSession(), LONG_LASTING_QUERY);
@@ -207,7 +208,20 @@ public class TestQueues
             throws Exception
     {
         try (DistributedQueryRunner queryRunner = createQueryRunner()) {
-            updateResourceGroupQuery(queryRunner, "global.user-${USER}.dashboard-${USER}", "8kB", "10kB", 1, 1, null, null, null, null, null, null, null);
+            updateResourceGroupQuery(queryRunner, "global.user-${USER}.dashboard-${USER}", "8kB", "10kB", "20GB", 1, 1, null, null, null, null, null, null, null);
+            QueryId firstDashboardQuery = createQuery(queryRunner, newDashboardSession(), HUGE_MEMORY_QUERY);
+            waitForQueryState(queryRunner, firstDashboardQuery, RUNNING);
+            waitForQueryState(queryRunner, firstDashboardQuery, FAILED);
+            assertEquals(EXCEEDED_MEMORY_LIMIT.toErrorCode(), queryRunner.getCoordinator().getQueryManager().getQueryInfo(firstDashboardQuery).getErrorCode());
+        }
+    }
+
+    @Test(timeOut = 240_000)
+    public void testMaxMemoryPerQuery()
+            throws Exception
+    {
+        try (DistributedQueryRunner queryRunner = createQueryRunner()) {
+            updateResourceGroupQuery(queryRunner, "global.user-${USER}.dashboard-${USER}", "4GB", "4GB", "40kB", 1, 1, null, null, null, null, null, null, null);
             QueryId firstDashboardQuery = createQuery(queryRunner, newDashboardSession(), HUGE_MEMORY_QUERY);
             waitForQueryState(queryRunner, firstDashboardQuery, RUNNING);
             waitForQueryState(queryRunner, firstDashboardQuery, FAILED);

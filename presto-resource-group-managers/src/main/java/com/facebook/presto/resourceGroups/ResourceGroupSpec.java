@@ -51,6 +51,7 @@ public class ResourceGroupSpec
     private final Optional<Duration> hardCpuLimit;
     private final Optional<Duration> queuedTimeout;
     private final Optional<Duration> runningTimeout;
+    private final Optional<DataSize> maxMemoryPerQuery;
 
     public static ResourceGroupSpec copyAndAddSubGroups(ResourceGroupSpec spec, List<ResourceGroupSpec> subGroups)
     {
@@ -63,6 +64,7 @@ public class ResourceGroupSpec
                 spec.hardMemoryLimit,
                 spec.softMemoryLimitFraction,
                 spec.hardMemoryLimitFraction,
+                spec.maxMemoryPerQuery,
                 spec.maxQueued,
                 spec.maxRunning,
                 spec.schedulingPolicy,
@@ -84,6 +86,7 @@ public class ResourceGroupSpec
                 spec.hardMemoryLimit,
                 spec.softMemoryLimitFraction,
                 spec.hardMemoryLimitFraction,
+                spec.maxMemoryPerQuery,
                 spec.maxQueued,
                 spec.maxRunning,
                 schedulingPolicy,
@@ -103,6 +106,7 @@ public class ResourceGroupSpec
             Optional<DataSize> hardMemoryLimit,
             Optional<Double> softMemoryLimitFraction,
             Optional<Double> hardMemoryLimitFraction,
+            Optional<DataSize> maxMemoryPerQuery,
             int maxQueued,
             int maxRunning,
             Optional<SchedulingPolicy> schedulingPolicy,
@@ -119,6 +123,7 @@ public class ResourceGroupSpec
         this.hardMemoryLimit = hardMemoryLimit;
         this.softMemoryLimitFraction = softMemoryLimitFraction;
         this.hardMemoryLimitFraction = hardMemoryLimitFraction;
+        this.maxMemoryPerQuery = maxMemoryPerQuery;
         this.maxQueued = maxQueued;
         this.maxRunning = maxRunning;
         this.schedulingPolicy = schedulingPolicy;
@@ -137,6 +142,7 @@ public class ResourceGroupSpec
             @JsonProperty("name") ResourceGroupNameTemplate name,
             @JsonProperty("softMemoryLimit") String softMemoryLimit,
             @JsonProperty("hardMemoryLimit") String hardMemoryLimit,
+            @JsonProperty("maxMemoryPerQuery") String maxMemoryPerQuery,
             @JsonProperty("maxQueued") int maxQueued,
             @JsonProperty("maxRunning") int maxRunning,
             @JsonProperty("schedulingPolicy") Optional<String> schedulingPolicy,
@@ -146,7 +152,8 @@ public class ResourceGroupSpec
             @JsonProperty("softCpuLimit") Optional<Duration> softCpuLimit,
             @JsonProperty("hardCpuLimit") Optional<Duration> hardCpuLimit,
             @JsonProperty("queuedTimeout") Optional<Duration> queuedTimeout,
-            @JsonProperty("runningTimeout") Optional<Duration> runningTimeout)
+            @JsonProperty("runningTimeout") Optional<Duration> runningTimeout
+    )
     {
         this.softCpuLimit = requireNonNull(softCpuLimit, "softCpuLimit is null");
         this.hardCpuLimit = requireNonNull(hardCpuLimit, "hardCpuLimit is null");
@@ -186,6 +193,7 @@ public class ResourceGroupSpec
         }
         this.hardMemoryLimit = absoluteSize;
         this.hardMemoryLimitFraction = fraction;
+        this.maxMemoryPerQuery = Optional.ofNullable(maxMemoryPerQuery).map(DataSize::valueOf);
         this.subGroups = ImmutableList.copyOf(requireNonNull(subGroups, "subGroups is null").orElse(ImmutableList.of()));
         checkDuplicateSubGroup(this.subGroups);
     }
@@ -217,6 +225,11 @@ public class ResourceGroupSpec
     public Optional<Double> getHardMemoryLimitFraction()
     {
         return hardMemoryLimitFraction;
+    }
+
+    public Optional<DataSize> getMaxMemoryPerQuery()
+    {
+        return maxMemoryPerQuery;
     }
 
     public int getMaxQueued()
@@ -287,6 +300,7 @@ public class ResourceGroupSpec
         return (name.equals(that.name) &&
                 softMemoryLimit.equals(that.softMemoryLimit) &&
                 hardMemoryLimit.equals(that.hardMemoryLimit) &&
+                maxMemoryPerQuery.equals(that.maxMemoryPerQuery) &&
                 maxQueued == that.maxQueued &&
                 maxRunning == that.maxRunning &&
                 schedulingPolicy.equals(that.schedulingPolicy) &&
@@ -308,6 +322,7 @@ public class ResourceGroupSpec
         return (name.equals(other.name) &&
                 softMemoryLimit.equals(other.softMemoryLimit) &&
                 hardMemoryLimit.equals(other.hardMemoryLimit) &&
+                maxMemoryPerQuery.equals(other.maxMemoryPerQuery) &&
                 maxQueued == other.maxQueued &&
                 maxRunning == other.maxRunning &&
                 schedulingPolicy.equals(other.schedulingPolicy) &&
@@ -326,6 +341,7 @@ public class ResourceGroupSpec
                 name,
                 softMemoryLimit,
                 hardMemoryLimit,
+                maxMemoryPerQuery,
                 maxQueued,
                 maxRunning,
                 schedulingPolicy,
@@ -345,6 +361,7 @@ public class ResourceGroupSpec
                 .add("name", name)
                 .add("softMemoryLimit", softMemoryLimit)
                 .add("hardMemoryLimit", hardMemoryLimit)
+                .add("maxMemoryPerQuery", maxMemoryPerQuery)
                 .add("maxQueued", maxQueued)
                 .add("maxRunning", maxRunning)
                 .add("schedulingPolicy", schedulingPolicy)

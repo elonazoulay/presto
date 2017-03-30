@@ -51,6 +51,7 @@ public interface ResourceGroupsDao
             "  name VARCHAR(250) NOT NULL,\n" +
             "  soft_memory_limit VARCHAR(128) NOT NULL,\n" +
             "  hard_memory_limit VARCHAR(128) NOT NULL,\n" +
+            "  max_memory_per_query VARCHAR(128) NULL,\n" +
             "  max_queued INT NOT NULL,\n" +
             "  max_running INT NOT NULL,\n" +
             "  scheduling_policy VARCHAR(128) NULL,\n" +
@@ -66,7 +67,7 @@ public interface ResourceGroupsDao
             ")")
     void createResourceGroupsTable();
 
-    @SqlQuery("SELECT resource_group_id, name, soft_memory_limit, hard_memory_limit, max_queued, max_running," +
+    @SqlQuery("SELECT resource_group_id, name, soft_memory_limit, hard_memory_limit, max_memory_per_query, max_queued, max_running," +
             "  scheduling_policy, scheduling_weight, jmx_export, soft_cpu_limit, hard_cpu_limit, " +
             "  queued_timeout, running_timeout, parent\n" +
             "FROM resource_groups")
@@ -86,13 +87,14 @@ public interface ResourceGroupsDao
     void createSelectorsTable();
 
     @SqlUpdate("INSERT INTO resource_groups\n" +
-            "(resource_group_id, name, soft_memory_limit, hard_memory_limit, max_queued, max_running, scheduling_policy, scheduling_weight, jmx_export, soft_cpu_limit, hard_cpu_limit, queued_timeout, running_timeout, parent)\n" +
-            "VALUES (:resource_group_id, :name, :soft_memory_limit, :hard_memory_limit, :max_queued, :max_running, :scheduling_policy, :scheduling_weight, :jmx_export, :soft_cpu_limit, :hard_cpu_limit, :queued_timeout, :running_timeout, :parent)")
+            "(resource_group_id, name, soft_memory_limit, hard_memory_limit, max_memory_per_query, max_queued, max_running, scheduling_policy, scheduling_weight, jmx_export, soft_cpu_limit, hard_cpu_limit, queued_timeout, running_timeout, parent)\n" +
+            "VALUES (:resource_group_id, :name, :soft_memory_limit, :hard_memory_limit, :max_memory_per_query, :max_queued, :max_running, :scheduling_policy, :scheduling_weight, :jmx_export, :soft_cpu_limit, :hard_cpu_limit, :queued_timeout, :running_timeout, :parent)")
     void insertResourceGroup(
             @Bind("resource_group_id") long resourceGroupId,
             @Bind("name") String name,
             @Bind("soft_memory_limit") String softMemoryLimit,
             @Bind("hard_memory_limit") String hardMemoryLimit,
+            @Bind("max_memory_per_query") String maxMemoryPerQuery,
             @Bind("max_queued") int maxQueued,
             @Bind("max_running") int maxRunning,
             @Bind("scheduling_policy") String schedulingPolicy,
@@ -110,6 +112,7 @@ public interface ResourceGroupsDao
             "  name = :name,\n" +
             "  soft_memory_limit = :soft_memory_limit,\n" +
             "  hard_memory_limit = :hard_memory_limit,\n" +
+            "  max_memory_per_query = :max_memory_per_query,\n" +
             "  max_queued = :max_queued,\n" +
             "  max_running = :max_running,\n" +
             "  scheduling_policy = :scheduling_policy,\n" +
@@ -126,6 +129,7 @@ public interface ResourceGroupsDao
             @Bind("name") String resourceGroup,
             @Bind("soft_memory_limit") String softMemoryLimit,
             @Bind("hard_memory_limit") String hardMemoryLimit,
+            @Bind("max_memory_per_query") String maxMemoryPerQuery,
             @Bind("max_queued") int maxQueued,
             @Bind("max_running") int maxRunning,
             @Bind("scheduling_policy") String schedulingPolicy,

@@ -95,10 +95,10 @@ public class TestWeightedFifoSchedulingPolicy
 
     private static void setupWeightedFifo(DistributedQueryRunner queryRunner)
     {
-        insertResourceGroupQuery(queryRunner, "bi", "1MB", "1GB", 100, 2, "weighted_fifo", null, null, null, null, null, null);
-        insertResourceGroupQuery(queryRunner, "bi.etl-hi", "1MB", "1GB", 100, 2, "weighted_fifo", 100, null, null, null, null, null);
-        insertResourceGroupQuery(queryRunner, "bi.etl-med", "1MB", "1GB", 100, 2, "weighted_fifo", 50, null, null, null, null, null);
-        insertResourceGroupQuery(queryRunner, "bi.etl-lo", "1MB", "1GB", 100, 2, "weighted_fifo", 20, null, null, null, null, null);
+        insertResourceGroupQuery(queryRunner, "bi", "1MB", "1GB", "20GB", 100, 2, "weighted_fifo", null, null, null, null, null, null);
+        insertResourceGroupQuery(queryRunner, "bi.etl-hi", "1MB", "1GB", "20GB", 100, 2, "weighted_fifo", 100, null, null, null, null, null);
+        insertResourceGroupQuery(queryRunner, "bi.etl-med", "1MB", "1GB", "20GB", 100, 2, "weighted_fifo", 50, null, null, null, null, null);
+        insertResourceGroupQuery(queryRunner, "bi.etl-lo", "1MB", "1GB", "20GB", 100, 2, "weighted_fifo", 20, null, null, null, null, null);
         insertSelectorQuery(queryRunner, "bi.etl-hi", "user.*", "etl-hi");
         insertSelectorQuery(queryRunner, "bi.etl-med", "user.*", "etl-med");
         insertSelectorQuery(queryRunner, "bi.etl-lo", "user.*", "etl-lo");
