@@ -30,6 +30,7 @@ public class TestingResourceGroup
     private final ResourceGroupId id;
     private DataSize softMemoryLimit;
     private DataSize hardMemoryLimit;
+    private DataSize maxMemoryPerQuery;
     private Duration softCpuLimit;
     private Duration hardCpuLimit;
     private long quotaGenerationRate;
@@ -74,6 +75,18 @@ public class TestingResourceGroup
     public void setHardMemoryLimit(DataSize limit)
     {
         hardMemoryLimit = limit;
+    }
+
+    @Override
+    public DataSize getMaxMemoryPerQuery()
+    {
+        return maxMemoryPerQuery;
+    }
+
+    @Override
+    public void setMaxMemoryPerQuery(DataSize limit)
+    {
+        maxMemoryPerQuery = limit;
     }
 
     @Override

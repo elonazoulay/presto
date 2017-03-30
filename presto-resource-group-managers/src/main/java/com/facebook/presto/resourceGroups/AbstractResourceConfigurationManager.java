@@ -205,6 +205,7 @@ public abstract class AbstractResourceConfigurationManager
                 group.setHardMemoryLimit(new DataSize(generalPoolBytes * fraction, BYTE));
             }
         }
+        match.getMaxMemoryPerQuery().ifPresent(limit -> group.setMaxMemoryPerQuery(limit));
         group.setMaxQueuedQueries(match.getMaxQueued());
         group.setMaxRunningQueries(match.getMaxRunning());
         match.getQueuedTimeout().ifPresent(timeout -> group.setQueuedTimeout(timeout));

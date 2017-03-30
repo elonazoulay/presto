@@ -46,6 +46,7 @@ public class H2QueryRunner
     private static final String RESOURCE_GROUP_SPECS_QUERY = "SELECT resource_group_template_id,\n" +
             "  soft_memory_limit,\n" +
             "  hard_memory_limit,\n" +
+            "  max_memory_per_query,\n" +
             "  max_queued,\n" +
             "  max_running,\n" +
             "  scheduling_policy,\n" +
@@ -117,12 +118,12 @@ public class H2QueryRunner
             throws InterruptedException
     {
         dao.upsertResourceGroupsGlobalProperties(CPU_QUOTA_PERIOD, "1h");
-        dao.insertResourceGroup(1, "global", "1MB", "1MB", 100, 1000, null, null, null, null, null, null, null, null);
-        dao.insertResourceGroup(2, "bi-${USER}", "1MB", "1MB", 3, 2, null, null, null, null, null, null, null, 1L);
-        dao.insertResourceGroup(3, "user-${USER}", "1MB", "1MB", 3, 3, null, null, null, null, null, null, null, 1L);
-        dao.insertResourceGroup(4, "adhoc-${USER}", "1MB", "1MB", 3, 3, null, null, null, null, null, null, null, 3L);
-        dao.insertResourceGroup(5, "dashboard-${USER}", "1MB", "1MB", 1, 1, null, null, null, null, null, null, null, 3L);
-        dao.insertResourceGroup(6, "admin", "1MB", "1MB", 3, 3, null, null, null, null, null, null, null, null);
+        dao.insertResourceGroup(1, "global", "1MB", "1MB", "20GB", 100, 1000, null, null, null, null, null, null, null, null);
+        dao.insertResourceGroup(2, "bi-${USER}", "1MB", "1MB", "20GB", 3, 2, null, null, null, null, null, null, null, 1L);
+        dao.insertResourceGroup(3, "user-${USER}", "1MB", "1MB", "20GB", 3, 3, null, null, null, null, null, null, null, 1L);
+        dao.insertResourceGroup(4, "adhoc-${USER}", "1MB", "1MB", "20GB", 3, 3, null, null, null, null, null, null, null, 3L);
+        dao.insertResourceGroup(5, "dashboard-${USER}", "1MB", "1MB", "20GB", 1, 1, null, null, null, null, null, null, null, 3L);
+        dao.insertResourceGroup(6, "admin", "1MB", "1MB", "20GB", 3, 3, null, null, null, null, null, null, null, null);
         dao.insertSelector(2, "user.*", "test");
         dao.insertSelector(4, "user.*", "(?i).*adhoc.*");
         dao.insertSelector(5, "user.*", "(?i).*dashboard.*");
@@ -227,6 +228,7 @@ public class H2QueryRunner
             String resourceGroupTemplateId,
             String softMemoryLimit,
             String hardMemoryLimit,
+            String maxMemoryPerQuery,
             int maxQueued,
             int maxRunning,
             String schedulingPolicy,
@@ -238,10 +240,11 @@ public class H2QueryRunner
             String runningTimeout)
     {
         queryRunner.execute(newAdminSession(),
-                format("CALL resource_group_managers.system.add_resource_group(%s, %s, %s, %s, %s, %s,%s, %s, %s, %s, %s, %s)",
+                format("CALL resource_group_managers.system.add_resource_group(%s, %s, %s, %s, %s, %s, %s,%s, %s, %s, %s, %s, %s)",
                         toParam(resourceGroupTemplateId),
                         toParam(softMemoryLimit),
                         toParam(hardMemoryLimit),
+                        toParam(maxMemoryPerQuery),
                         maxQueued,
                         maxRunning,
                         toParam(schedulingPolicy),
@@ -258,6 +261,7 @@ public class H2QueryRunner
             String resourceGroupTemplateId,
             String softMemoryLimit,
             String hardMemoryLimit,
+            String maxMemoryPerQuery,
             int maxQueued,
             int maxRunning,
             String schedulingPolicy,
@@ -269,10 +273,11 @@ public class H2QueryRunner
             String runningTimeout)
     {
         queryRunner.execute(newAdminSession(),
-                format("CALL resource_group_managers.system.alter_resource_group(%s, %s, %s, %s, %s, %s,%s, %s, %s, %s, %s, %s)",
+                format("CALL resource_group_managers.system.alter_resource_group(%s, %s, %s, %s, %s, %s, %s,%s, %s, %s, %s, %s, %s)",
                         toParam(resourceGroupTemplateId),
                         toParam(softMemoryLimit),
                         toParam(hardMemoryLimit),
+                        toParam(maxMemoryPerQuery),
                         maxQueued,
                         maxRunning,
                         toParam(schedulingPolicy),

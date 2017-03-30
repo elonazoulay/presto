@@ -52,7 +52,7 @@ public class TestQueryQueueSystemTable
     {
         try (DistributedQueryRunner queryRunner = createQueryRunner()) {
             QueryManager queryManager = queryRunner.getCoordinator().getQueryManager();
-            updateResourceGroupQuery(queryRunner, "global.user-${USER}.dashboard-${USER}", "1MB", "1MB", 3, 1, null, null, null, null, null, null, null);
+            updateResourceGroupQuery(queryRunner, "global.user-${USER}.dashboard-${USER}", "1MB", "1MB", "20GB", 3, 1, null, null, null, null, null, null, null);
             //dao.updateResourceGroup(5, "dashboard-${USER}", "1MB", "1MB", 3, 1, null, null, null, null, null, null, null, 3L);
             MILLISECONDS.sleep(2000);
             // submit first "dashboard" query
@@ -86,7 +86,7 @@ public class TestQueryQueueSystemTable
             Session adminSession = newAdminSession();
             MaterializedResult result = queryRunner.execute(adminSession, QUEUE_INFO_QUERY);
             for (MaterializedRow row : result.getMaterializedRows()) {
-                assertEquals(row.getField(0).toString(), "global");
+                assertTrue(row.getField(0).toString().contains("global") || row.getField(0).toString().contains("admin"));
                 String resourceGroupId = row.getField(1).toString();
                 // Only filter for dashboard queries
                 if (!resourceGroupId.contains("dashboard")) {

@@ -32,6 +32,7 @@ public class ResourceGroupSpecBuilder
     private final ResourceGroupNameTemplate nameTemplate;
     private final String softMemoryLimit;
     private final String hardMemoryLimit;
+    private final String maxMemoryPerQuery;
     private final int maxQueued;
     private final int maxRunning;
     private final Optional<String> schedulingPolicy;
@@ -49,6 +50,7 @@ public class ResourceGroupSpecBuilder
             ResourceGroupNameTemplate nameTemplate,
             String softMemoryLimit,
             String hardMemoryLimit,
+            String maxMemoryPerQuery,
             int maxQueued,
             int maxRunning,
             Optional<String> schedulingPolicy,
@@ -65,6 +67,7 @@ public class ResourceGroupSpecBuilder
         this.nameTemplate = nameTemplate;
         this.softMemoryLimit = requireNonNull(softMemoryLimit, "softMemoryLimit is null");
         this.hardMemoryLimit = requireNonNull(hardMemoryLimit, "hardMemoryLimit is null");
+        this.maxMemoryPerQuery = maxMemoryPerQuery;
         this.maxQueued = maxQueued;
         this.maxRunning = maxRunning;
         this.schedulingPolicy = requireNonNull(schedulingPolicy, "schedulingPolicy is null");
@@ -113,6 +116,7 @@ public class ResourceGroupSpecBuilder
                 nameTemplate,
                 softMemoryLimit,
                 hardMemoryLimit,
+                maxMemoryPerQuery,
                 maxQueued,
                 maxRunning,
                 schedulingPolicy,
@@ -132,6 +136,7 @@ public class ResourceGroupSpecBuilder
                 nameTemplate.toString(),
                 softMemoryLimit,
                 hardMemoryLimit,
+                maxMemoryPerQuery,
                 maxQueued,
                 maxRunning,
                 schedulingPolicy.orElse(null),
@@ -151,6 +156,7 @@ public class ResourceGroupSpecBuilder
                 nameTemplate.toString(),
                 softMemoryLimit,
                 hardMemoryLimit,
+                maxMemoryPerQuery,
                 maxQueued,
                 maxRunning,
                 schedulingPolicy.orElse(null),
@@ -193,11 +199,13 @@ public class ResourceGroupSpecBuilder
             }
             Optional<String> queuedTimeout = Optional.ofNullable(resultSet.getString("queued_timeout"));
             Optional<String> runningTimeout = Optional.ofNullable(resultSet.getString("running_timeout"));
+            String maxMemoryPerQuery = resultSet.getString("max_memory_per_query");
             return new ResourceGroupSpecBuilder(
                     id,
                     nameTemplate,
                     softMemoryLimit,
                     hardMemoryLimit,
+                    maxMemoryPerQuery,
                     maxQueued,
                     maxRunning,
                     schedulingPolicy,
@@ -207,8 +215,7 @@ public class ResourceGroupSpecBuilder
                     hardCpuLimit,
                     queuedTimeout,
                     runningTimeout,
-                    parentId
-            );
+                    parentId);
         }
     }
 }

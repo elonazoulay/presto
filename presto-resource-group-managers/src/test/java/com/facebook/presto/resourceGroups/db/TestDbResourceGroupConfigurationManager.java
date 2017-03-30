@@ -58,19 +58,19 @@ public class TestDbResourceGroupConfigurationManager
         dao.createResourceGroupsTable();
         dao.createSelectorsTable();
         dao.upsertResourceGroupsGlobalProperties(CPU_QUOTA_PERIOD, "1h");
-        dao.insertResourceGroup(1, "global", "1MB", "1GB", 1000, 100, "weighted", null, true, "1h", "1d", "1h", "1h", null);
-        dao.insertResourceGroup(2, "sub", "2MB", "1GB", 4, 3, null, 5, null, null, null, "1h", "1h", 1L);
+        dao.insertResourceGroup(1, "global", "1MB", "1GB", "20GB", 1000, 100, "weighted", null, true, "1h", "1d", "1h", "1h", null);
+        dao.insertResourceGroup(2, "sub", "2MB", "1GB", "20GB", 4, 3, null, 5, null, null, null, "1h", "1h", 1L);
         dao.insertSelector(2, null, null);
         DbResourceGroupConfigurationManager manager = new DbResourceGroupConfigurationManager((poolId, listener) -> { },
                 daoProvider.get(), queryQueueCache, resourceGroupInfoHolder, configurationNotifier);
         AtomicBoolean exported = new AtomicBoolean();
         InternalResourceGroup global = new InternalResourceGroup.RootInternalResourceGroup("global", (group, export) -> exported.set(export), directExecutor());
         manager.configure(global, new SelectionContext(true, "user", Optional.empty(), 1));
-        assertEqualsResourceGroup(global, "1MB", "1GB", 1000, 100, WEIGHTED, DEFAULT_WEIGHT, true,  new Duration(1, HOURS), new Duration(1, DAYS), new Duration(1, HOURS), new Duration(1, HOURS));
+        assertEqualsResourceGroup(global, "1MB", "1GB", "20GB", 1000, 100, WEIGHTED, DEFAULT_WEIGHT, true,  new Duration(1, HOURS), new Duration(1, DAYS), new Duration(1, HOURS), new Duration(1, HOURS));
         exported.set(false);
         InternalResourceGroup sub = global.getOrCreateSubGroup("sub");
         manager.configure(sub, new SelectionContext(true, "user", Optional.empty(), 1));
-        assertEqualsResourceGroup(sub, "2MB", "1GB", 4, 3, FAIR, 5, false, new Duration(Long.MAX_VALUE, MILLISECONDS), new Duration(Long.MAX_VALUE, MILLISECONDS), new Duration(1, HOURS), new Duration(1, HOURS));
+        assertEqualsResourceGroup(sub, "2MB", "1GB", "20GB", 4, 3, FAIR, 5, false, new Duration(Long.MAX_VALUE, MILLISECONDS), new Duration(Long.MAX_VALUE, MILLISECONDS), new Duration(1, HOURS), new Duration(1, HOURS));
     }
 
     @Test
@@ -81,9 +81,9 @@ public class TestDbResourceGroupConfigurationManager
         dao.createResourceGroupsGlobalPropertiesTable();
         dao.createResourceGroupsTable();
         dao.createSelectorsTable();
-        dao.insertResourceGroup(1, "global", "1MB", "1GB", 1000, 100, null, null, null, null, null, null, null, null);
+        dao.insertResourceGroup(1, "global", "1MB", "1GB", "20GB", 1000, 100, null, null, null, null, null, null, null, null);
         try {
-            dao.insertResourceGroup(1, "global", "1MB", "1GB", 1000, 100, null, null, null, null, null, null, null, null);
+            dao.insertResourceGroup(1, "global", "1MB", "1GB", "20GB", 1000, 100, null, null, null, null, null, null, null, null);
             fail("Expected to fail");
         }
         catch (RuntimeException ex) {
@@ -97,10 +97,10 @@ public class TestDbResourceGroupConfigurationManager
         dao.createResourceGroupsGlobalPropertiesTable();
         dao.createResourceGroupsTable();
         dao.createSelectorsTable();
-        dao.insertResourceGroup(1, "global", "1MB", "1GB", 1000, 100, null, null, null, null, null, null, null, null);
-        dao.insertResourceGroup(2, "sub", "1MB", "1GB", 1000, 100, null, null, null, null, null, null, null, 1L);
+        dao.insertResourceGroup(1, "global", "1MB", "1GB", "20GB", 1000, 100, null, null, null, null, null, null, null, null);
+        dao.insertResourceGroup(2, "sub", "1MB", "1GB", "20GB", 1000, 100, null, null, null, null, null, null, null, 1L);
         try {
-            dao.insertResourceGroup(2, "sub", "1MB", "1GB", 1000, 100, null, null, null, null, null, null, null, 1L);
+            dao.insertResourceGroup(2, "sub", "1MB", "1GB", "20GB", 1000, 100, null, null, null, null, null, null, null, 1L);
         }
         catch (RuntimeException ex) {
             assertTrue(ex instanceof UnableToExecuteStatementException);
@@ -122,8 +122,8 @@ public class TestDbResourceGroupConfigurationManager
         dao.createResourceGroupsGlobalPropertiesTable();
         dao.createResourceGroupsTable();
         dao.createSelectorsTable();
-        dao.insertResourceGroup(1, "global", "1MB", "1GB", 1000, 100, "weighted", null, true, "1h", "1d", null, null, null);
-        dao.insertResourceGroup(2, "sub", "2MB", "1GB", 4, 3, null, 5, null, null, null, null, null, 1L);
+        dao.insertResourceGroup(1, "global", "1MB", "1GB", "20GB", 1000, 100, "weighted", null, true, "1h", "1d", null, null, null);
+        dao.insertResourceGroup(2, "sub", "2MB", "1GB", "20GB", 4, 3, null, 5, null, null, null, null, null, 1L);
         dao.upsertResourceGroupsGlobalProperties(CPU_QUOTA_PERIOD, "1h");
         dao.insertSelector(2, null, null);
         DbResourceGroupConfigurationManager manager = new DbResourceGroupConfigurationManager((poolId, listener) -> {
@@ -145,8 +145,8 @@ public class TestDbResourceGroupConfigurationManager
         dao.createResourceGroupsGlobalPropertiesTable();
         dao.createResourceGroupsTable();
         dao.createSelectorsTable();
-        dao.insertResourceGroup(1, "global", "1MB", "1GB", 1000, 100, "weighted", null, true, "1h", "1d", null, null, null);
-        dao.insertResourceGroup(2, "sub", "2MB", "1GB", 4, 3, null, 5, null, null, null, null, null, 1L);
+        dao.insertResourceGroup(1, "global", "1MB", "1GB", "20GB", 1000, 100, "weighted", null, true, "1h", "1d", null, null, null);
+        dao.insertResourceGroup(2, "sub", "2MB", "1GB", "20GB", 4, 3, null, 5, null, null, null, null, null, 1L);
         dao.insertSelector(2, null, null);
         dao.upsertResourceGroupsGlobalProperties(CPU_QUOTA_PERIOD, "1h");
         DbResourceGroupConfigurationManager manager = new DbResourceGroupConfigurationManager(
@@ -159,14 +159,14 @@ public class TestDbResourceGroupConfigurationManager
         InternalResourceGroup globalSub = global.getOrCreateSubGroup("sub");
         manager.configure(globalSub, new SelectionContext(true, "user", Optional.empty(), 1));
         // Verify record exists
-        assertEqualsResourceGroup(globalSub, "2MB", "1GB", 4, 3, FAIR, 5, false, new Duration(Long.MAX_VALUE, MILLISECONDS), new Duration(Long.MAX_VALUE, MILLISECONDS), new Duration(Long.MAX_VALUE, MILLISECONDS), new Duration(Long.MAX_VALUE, MILLISECONDS));
-        dao.updateResourceGroup(2, "sub", "3MB", "1GB", 2, 1, "weighted", 6, true, "1h", "1d", null, null, 1L);
+        assertEqualsResourceGroup(globalSub, "2MB", "1GB", "20GB", 4, 3, FAIR, 5, false, new Duration(Long.MAX_VALUE, MILLISECONDS), new Duration(Long.MAX_VALUE, MILLISECONDS), new Duration(Long.MAX_VALUE, MILLISECONDS), new Duration(Long.MAX_VALUE, MILLISECONDS));
+        dao.updateResourceGroup(2, "sub", "3MB", "1GB", "20GB", 2, 1, "weighted", 6, true, "1h", "1d", null, null, 1L);
         configurationNotifier.reload();
         do {
             MILLISECONDS.sleep(500);
         } while(globalSub.getJmxExport() == false);
         // Verify update
-        assertEqualsResourceGroup(globalSub, "3MB", "1GB", 2, 1, WEIGHTED, 6, true, new Duration(1, HOURS), new Duration(1, DAYS), new Duration(Long.MAX_VALUE, MILLISECONDS), new Duration(Long.MAX_VALUE, MILLISECONDS));
+        assertEqualsResourceGroup(globalSub, "3MB", "1GB", "20GB", 2, 1, WEIGHTED, 6, true, new Duration(1, HOURS), new Duration(1, DAYS), new Duration(Long.MAX_VALUE, MILLISECONDS), new Duration(Long.MAX_VALUE, MILLISECONDS));
         // Verify delete
         dao.deleteSelectors(2);
         dao.deleteResourceGroup(2);
@@ -193,22 +193,11 @@ public class TestDbResourceGroupConfigurationManager
         manager.start();
     }
 
-    @Test(timeOut = 60_000)
-    public void testResourceGroupSpecsSystemTable()
-    {
-        // TODO
-    }
-
-    @Test(timeOut = 60_000)
-    public void testResourceGroupParentChildSystemTable()
-    {
-        // TODO
-    }
-
     private static void assertEqualsResourceGroup(
             InternalResourceGroup group,
             String softMemoryLimit,
             String hardMemoryLimit,
+            String maxMemoryPerQuery,
             int maxQueued,
             int maxRunning,
             SchedulingPolicy schedulingPolicy,
@@ -221,6 +210,7 @@ public class TestDbResourceGroupConfigurationManager
     {
         assertEquals(group.getSoftMemoryLimit(), DataSize.valueOf(softMemoryLimit));
         assertEquals(group.getHardMemoryLimit(), DataSize.valueOf(hardMemoryLimit));
+        assertEquals(group.getMaxMemoryPerQuery(), DataSize.valueOf(maxMemoryPerQuery));
         assertEquals(group.getInfo().getMaxQueuedQueries(), maxQueued);
         assertEquals(group.getInfo().getMaxRunningQueries(), maxRunning);
         assertEquals(group.getSchedulingPolicy(), schedulingPolicy);

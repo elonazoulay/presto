@@ -51,6 +51,7 @@ public class ResourceGroupSpecSystemTable
                     .add(new ColumnMetadata("resource_group_template_id", VARCHAR))
                     .add(new ColumnMetadata("soft_memory_limit", VARCHAR))
                     .add(new ColumnMetadata("hard_memory_limit", VARCHAR))
+                    .add(new ColumnMetadata("max_memory_per_query", VARCHAR))
                     .add(new ColumnMetadata("max_queued", BIGINT))
                     .add(new ColumnMetadata("max_running", BIGINT))
                     .add(new ColumnMetadata("scheduling_policy", VARCHAR))
@@ -90,6 +91,7 @@ public class ResourceGroupSpecSystemTable
                     entry.getValue().getHardMemoryLimit().map(DataSize::toString).orElse(
                             format("%.0f%%", (entry.getValue().getHardMemoryLimitFraction().orElse(0.0) * 100))
                     ),
+                    entry.getValue().getMaxMemoryPerQuery().map(DataSize::toString).orElse(null),
                     entry.getValue().getMaxQueued(),
                     entry.getValue().getMaxRunning(),
                     entry.getValue().getSchedulingPolicy().map(SchedulingPolicy::toString).orElse(null),
