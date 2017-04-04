@@ -35,7 +35,7 @@ import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.facebook.presto.spi.type.VarcharType.VARCHAR;
 import static java.util.Objects.requireNonNull;
 
-public class TurboniumInfoSystemTable
+public class TurboniumTableStatsSystemTable
     implements SystemTable
 {
     private final ConnectorTableMetadata tableMetadata;
@@ -43,7 +43,7 @@ public class TurboniumInfoSystemTable
     private final String nodeId;
 
     @Inject
-    public TurboniumInfoSystemTable(TurboniumPagesStore pagesStore, NodeManager nodeManager)
+    public TurboniumTableStatsSystemTable(TurboniumPagesStore pagesStore, NodeManager nodeManager)
     {
         this.nodeId = requireNonNull(nodeManager, "nodeManager is null").getCurrentNode().getNodeIdentifier();
         this.pagesStore = requireNonNull(pagesStore, "pagesStore is null");
@@ -55,7 +55,8 @@ public class TurboniumInfoSystemTable
                         new ColumnMetadata("table_id", BIGINT),
                         new ColumnMetadata("pages", BIGINT),
                         new ColumnMetadata("rows", BIGINT),
-                        new ColumnMetadata("size_bytes", BIGINT)));
+                        new ColumnMetadata("size_bytes", BIGINT),
+                        new ColumnMetadata("source_size_bytes", BIGINT)));
     }
 
     @Override
@@ -82,7 +83,8 @@ public class TurboniumInfoSystemTable
                     tableId,
                     sizeInfo.getPageCount(),
                     sizeInfo.getRowCount(),
-                    sizeInfo.getSizeBytes()
+                    sizeInfo.getSizeBytes(),
+                    sizeInfo.getSourceSize()
             );
         }
         return systemTable.build().cursor();

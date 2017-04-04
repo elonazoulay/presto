@@ -13,36 +13,19 @@
  */
 package com.facebook.presto.plugin.turbonium.storage;
 
-public class Column
+import com.facebook.presto.spi.type.Type;
+
+public class IntColumnBuilder
+        extends AbstractColumnBuilder
 {
-    private final Segment[] segments;
-    private final long positionCount;
-    private final long sizeBytes;
-
-    public Column(Segment[] segments, long positionCount, long sizeBytes)
+    public IntColumnBuilder(int channel, Type type)
     {
-        this.segments = segments;
-        this.positionCount = positionCount;
-        this.sizeBytes = sizeBytes;
+        super(channel, type);
     }
 
-    public Segment getSegment(int index)
+    @Override
+    protected SegmentBuilder createSegmentBuilder()
     {
-        return segments[index];
-    }
-
-    public int segmentCount()
-    {
-        return segments.length;
-    }
-
-    public long getPositionCount()
-    {
-        return positionCount;
-    }
-
-    public long getSizeBytes()
-    {
-        return sizeBytes;
+        return IntSegments.builder(getChannel(), getType());
     }
 }

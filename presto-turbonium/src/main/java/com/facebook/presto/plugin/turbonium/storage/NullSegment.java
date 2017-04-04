@@ -13,45 +13,25 @@
  */
 package com.facebook.presto.plugin.turbonium.storage;
 
-import com.facebook.presto.spi.Page;
-import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.block.BlockBuilder;
-import com.facebook.presto.spi.type.Type;
 
-public abstract class AbstractColumn
-    implements Column
+public class NullSegment
+    implements Segment
 {
-    private final Type type;
-    private final boolean[] valueIsNull;
-
-    AbstractColumn(Type type, boolean[] valueIsNull)
+    private final int size;
+    public NullSegment(int size)
     {
-        this.type = type;
-        this.valueIsNull = valueIsNull;
+        this.size = size;
     }
-
     @Override
-    public Type getType()
+    public int size()
     {
-        return type;
+        return size;
     }
-
-    abstract protected void writeNonNull(BlockBuilder blockBuilder, int position);
 
     @Override
     public void write(BlockBuilder blockBuilder, int position)
     {
-        if (valueIsNull[position]) {
-            blockBuilder.appendNull();
-        }
-        else {
-            writeNonNull(blockBuilder, position);
-        }
-    }
-
-    @Override
-    public int size()
-    {
-        return valueIsNull.length;
+        blockBuilder.appendNull();
     }
 }

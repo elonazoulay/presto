@@ -17,35 +17,42 @@ import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.type.FixedWidthType;
 import com.facebook.presto.spi.type.Type;
 
-public interface ColumnBuilder {
+public interface ColumnBuilder
+{
     int getChannel();
     Type getType();
-    void appendFromPage(Page page);
+    void appendPage(Page page);
     Column build();
+
     static ColumnBuilder create(int channel, Type type)
     {
         if (type instanceof FixedWidthType) {
             int size = ((FixedWidthType) type).getFixedSize();
             switch (size) {
                 case 1:
-                    return new ByteColumn.Builder(channel, type);
-                case 2:
-                    return new ShortColumn.Builder(channel, type);
-                case 4:
-                    return new IntColumn.Builder(channel, type);
-                case 8:
-                    if (type.getJavaType() == double.class) {
-                        return new DoubleColumn.Builder(channel, type);
+                    if (type.getJavaType() == boolean.class) {
+                        return new BooleanColumnBuilder(channel, type);
                     }
                     else {
-                        return new LongColumn.Builder(channel, type);
+                        return new ByteColumnBuilder(channel, type);
+                    }
+                case 2:
+                    return new ShortColumnBuilder(channel, type);
+                case 4:
+                    return new IntColumnBuilder(channel, type);
+                case 8:
+                    if (type.getJavaType() == double.class) {
+                        return new DoubleColumnBuilder(channel, type);
+                    }
+                    else {
+                        return new LongColumnBuilder(channel, type);
                     }
                 default:
-                    throw new IllegalArgumentException("Unsupported size");
+                    throw new IllegalArgumentException("Unsupported segmentCount");
             }
         }
         else {
-            return new SliceColumn.Builder(channel, type);
+            return new SliceColumnBuilder(channel, type);
         }
     }
 }
