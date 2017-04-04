@@ -17,13 +17,13 @@ import com.facebook.presto.plugin.turbonium.config.TurboniumConfigManager;
 import com.facebook.presto.plugin.turbonium.storage.Table;
 import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.PrestoException;
-import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.type.Type;
 import com.google.common.collect.ImmutableList;
 import io.airlift.log.Logger;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+
 import javax.inject.Inject;
 
 import java.util.Collections;
@@ -32,9 +32,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 import static com.facebook.presto.plugin.turbonium.TurboniumErrorCode.MEMORY_LIMIT_EXCEEDED;
+import static com.facebook.presto.plugin.turbonium.TurboniumErrorCode.MISSING_DATA;
 import static com.facebook.presto.plugin.turbonium.TurboniumErrorCode.TABLE_SIZE_PER_NODE_EXCEEDED;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
@@ -44,8 +46,8 @@ public class TurboniumPagesStore
 {
     private static final Logger log = Logger.get(TurboniumPagesStore.class);
     private final TurboniumConfigManager configManager;
-
-    @GuardedBy("this")
+    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+    @GuardedBy("lock")
     private long currentBytes = 0;
 
     @Inject
@@ -54,16 +56,13 @@ public class TurboniumPagesStore
         this.configManager = configManager;
     }
 
-    @GuardedBy("this")
-    private final Map<Long, List<Page>> pages = new HashMap<>();
-
-    @GuardedBy("this")
+    @GuardedBy("lock")
     private final Map<Long, Table.Builder> tableBuilder = new HashMap<>();
 
-    @GuardedBy("this")
+    @GuardedBy("lock")
     private final Map<Long, Table> tables = new HashMap<>();
 
-    @GuardedBy("this")
+    @GuardedBy("lock")
     private final Map<Long, Long> tableSizes = new HashMap<>();
 
     private long getMaxBytes()
@@ -76,80 +75,104 @@ public class TurboniumPagesStore
         return configManager.getConfig().getMaxTableSizePerNode().toBytes();
     }
 
-    public synchronized void initialize(long tableId, TurboniumTableHandle tableHandle)
+    public void initialize(long tableId, TurboniumTableHandle tableHandle)
     {
-        if (!pages.containsKey(tableId)) {
-            // pages.put(tableId, new ArrayList<>());
-            tableBuilder.put(tableId, Table.builder(extractTypes(tableHandle)));
-            tableSizes.put(tableId, 0L);
+        try {
+            lock.writeLock().lock();
+            if (!tableBuilder.containsKey(tableId)) {
+                tableBuilder.put(tableId, Table.builder(extractTypes(tableHandle)));
+                tableSizes.put(tableId, 0L);
+            }
+        }
+        finally {
+            lock.writeLock().unlock();
         }
     }
 
-    public synchronized void add(Long tableId, Page page)
+    public void add(Long tableId, Page page)
     {
-        /*if (!contains(tableId)) {
-            throw new PrestoException(MISSING_DATA, "Failed to find table on a worker.");
+        Table.Builder builder;
+        try {
+            lock.writeLock().lock();
+            if (!tableSizes.containsKey(tableId)) {
+                throw new PrestoException(MISSING_DATA, "Failed to find table on a worker.");
+            }
+            page.compact();
+            long newSize = currentBytes + page.getRetainedSizeInBytes();
+            // TODO: base the memory limits on segment size not the source page size
+            long newTableSize = tableSizes.get(tableId) + page.getRetainedSizeInBytes();
+            long maxBytes = getMaxBytes();
+            if (maxBytes < newSize) {
+                throw new PrestoException(MEMORY_LIMIT_EXCEEDED, format("Memory limit [%d] for memory connector exceeded", maxBytes));
+            }
+            long maxBytesPerTable = getMaxBytesPerTable();
+            if (maxBytesPerTable < newTableSize) {
+                throw new PrestoException(TABLE_SIZE_PER_NODE_EXCEEDED, format("Table segmentCount [%d] bytes per node exceeded", maxBytesPerTable));
+            }
+            currentBytes = newSize;
+            tableSizes.put(tableId, newSize);
+            builder = tableBuilder.get(tableId);
         }
-        */
-        page.compact();
-        long newSize = currentBytes + page.getRetainedSizeInBytes();
-        long newTableSize = tableSizes.get(tableId) + page.getRetainedSizeInBytes();
-        long maxBytes = getMaxBytes();
-        if (maxBytes < newSize) {
-            throw new PrestoException(MEMORY_LIMIT_EXCEEDED, format("Memory limit [%d] for memory connector exceeded", maxBytes));
+        finally {
+            lock.writeLock().unlock();
         }
-        long maxBytesPerTable = getMaxBytesPerTable();
-        if (maxBytesPerTable < newTableSize) {
-            throw new PrestoException(TABLE_SIZE_PER_NODE_EXCEEDED, format("Table size [%d] bytes per node exceeded", maxBytesPerTable));
-        }
-        currentBytes = newSize;
-        tableSizes.put(tableId, newSize);
-        /*
-        List<Page> tablePages = pages.get(tableId);
-        tablePages.add(page);
-        */
-        tableBuilder.get(tableId).appendPage(page);
+        builder.appendPage(page);
     }
 
     public synchronized List<Page> getPages(Long tableId, int partNumber, int totalParts, List<Integer> columnIndexes)
     {
-        /*
-        if (!contains(tableId)) {
-            throw new PrestoException(MISSING_DATA, "Failed to find table on a worker.");
-        }
-        */
-        Table table = requireNonNull(tables.get(tableId), "Failed to find table on worker");
-        table.getPages(partNumber, totalParts, columnIndexes);
-        return table.getPages(partNumber, totalParts, columnIndexes);
-        /*
-        ImmutableList.Builder<Page> partitionedPages = ImmutableList.builder();
+        try {
+            lock.readLock().lock();
+            if (!tables.containsKey(tableId)) {
+                throw new PrestoException(MISSING_DATA, "Failed to find table on a worker.");
+            }
 
-        for (int i = partNumber; i < tablePages.size(); i += totalParts) {
-            partitionedPages.add(getColumns(tablePages.get(i), columnIndexes));
+            Table table = requireNonNull(tables.get(tableId), "Failed to find table on worker");
+            table.getPages(partNumber, totalParts, columnIndexes);
+            return table.getPages(partNumber, totalParts, columnIndexes);
         }
-        return partitionedPages.finishCreate();
-        */
+        finally {
+            lock.readLock().unlock();
+        }
     }
 
-    public synchronized List<Long> listTableIds()
+    public List<Long> listTableIds()
     {
-        return ImmutableList.copyOf(pages.keySet());
+        try {
+            lock.readLock().lock();
+            return ImmutableList.copyOf(tableSizes.keySet());
+        }
+        finally {
+            lock.readLock().unlock();
+        }
     }
 
     public synchronized SizeInfo getSize(Long tableId)
     {
-        long sizeBytes = pages.get(tableId).stream().mapToLong(Page::getRetainedSizeInBytes).sum();
-        long rowCount = pages.get(tableId).stream().mapToLong(Page::getPositionCount).sum();
-        long pagesCount = pages.get(tableId).size();
-        return new SizeInfo(rowCount, sizeBytes, pagesCount);
+        try {
+            lock.readLock().lock();
+            long sizeBytes = tables.get(tableId).getSizeBytes();
+            long rowCount = tables.get(tableId).getRowCount();
+            long pagesCount = tables.get(tableId).getSegmentCount();
+            return new SizeInfo(rowCount, sizeBytes, pagesCount, tableSizes.get(tableId));
+        }
+        finally {
+            lock.readLock().unlock();
+        }
     }
 
-    public synchronized boolean contains(Long tableId)
+    public boolean contains(Long tableId)
     {
-        return pages.containsKey(tableId);
+        try {
+            lock.readLock().lock();
+            return tableSizes.containsKey(tableId);
+        }
+        finally {
+            lock.readLock().unlock();
+        }
     }
 
-    public synchronized void cleanUp(Set<Long> activeTableIds)
+    public void cleanUp(Set<Long> activeTableIds)
     {
         // We have to remember that there might be some race conditions when there are two tables created at once.
         // That can lead to a situation when TurboniumPagesStore already knows about a newer second table on some worker
@@ -165,34 +188,35 @@ public class TurboniumPagesStore
         }
         long latestTableId  = Collections.max(activeTableIds);
 
-        for (Iterator<Map.Entry<Long, List<Page>>> tablePages = pages.entrySet().iterator(); tablePages.hasNext(); ) {
-            Map.Entry<Long, List<Page>> tablePagesEntry = tablePages.next();
-            Long tableId = tablePagesEntry.getKey();
-            if (tableId < latestTableId && !activeTableIds.contains(tableId)) {
-                for (Page removedPage : tablePagesEntry.getValue()) {
-                    currentBytes -= removedPage.getRetainedSizeInBytes();
+        try {
+            lock.writeLock().lock();
+            for (Iterator<Map.Entry<Long, Table>> tablePages = tables.entrySet().iterator(); tablePages.hasNext(); ) {
+                Map.Entry<Long, Table> tablePagesEntry = tablePages.next();
+                Long tableId = tablePagesEntry.getKey();
+                if (tableId < latestTableId && !activeTableIds.contains(tableId)) {
+                    currentBytes -= tablePagesEntry.getValue().getSizeBytes();
+                    tablePages.remove();
+                    tableSizes.remove(tableId);
+                    tableBuilder.remove(tableId);
+                    tables.remove(tableId);
                 }
-                tablePages.remove();
-                tableSizes.remove(tableId);
             }
         }
-    }
-
-    public synchronized void finishCreate(long tableId)
-    {
-        Table.Builder builder = requireNonNull(tableBuilder.remove(tableId), "table not found");
-        tables.put(tableId, builder.build());
-    }
-
-    private static Page getColumns(Page page, List<Integer> columnIndexes)
-    {
-        Block[] blocks = page.getBlocks();
-        Block[] outputBlocks = new Block[columnIndexes.size()];
-
-        for (int i = 0; i < columnIndexes.size(); i++) {
-            outputBlocks[i] = blocks[columnIndexes.get(i)];
+        finally {
+            lock.writeLock().unlock();
         }
-        return new Page(page.getPositionCount(), outputBlocks);
+    }
+
+    public void finishCreate(long tableId)
+    {
+        try {
+            lock.writeLock().lock();
+            Table.Builder builder = requireNonNull(tableBuilder.remove(tableId), "table not found");
+            tables.put(tableId, builder.build());
+        }
+        finally {
+            lock.writeLock().unlock();
+        }
     }
 
     public static class SizeInfo
@@ -200,11 +224,13 @@ public class TurboniumPagesStore
         private final long rowCount;
         private final long byteSize;
         private final long pageCount;
-        public SizeInfo(long rowCount, long byteSize, long pageCount)
+        private final long sourceSize;
+        public SizeInfo(long rowCount, long byteSize, long pageCount, long sourceSize)
         {
             this.rowCount = rowCount;
             this.byteSize = byteSize;
             this.pageCount = pageCount;
+            this.sourceSize = sourceSize;
         }
 
         public long getRowCount()
@@ -220,6 +246,10 @@ public class TurboniumPagesStore
         public long getPageCount()
         {
             return pageCount;
+        }
+        public long getSourceSize()
+        {
+            return sourceSize;
         }
     }
 

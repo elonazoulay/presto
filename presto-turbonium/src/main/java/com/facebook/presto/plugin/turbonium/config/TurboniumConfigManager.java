@@ -102,7 +102,7 @@ public class TurboniumConfigManager
             }
         }
         catch (Exception e) {
-            log.error("Failed to update max data size per node: %s", e);
+            log.error("Failed to update max data segmentCount per node: %s", e);
             Throwables.propagate(e);
         }
     }
@@ -116,7 +116,7 @@ public class TurboniumConfigManager
             }
         }
         catch (Exception e) {
-            log.error("Failed to update max table size per node: %s", e);
+            log.error("Failed to update max table segmentCount per node: %s", e);
             Throwables.propagate(e);
         }
     }

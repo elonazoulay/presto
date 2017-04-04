@@ -74,7 +74,6 @@ public class TurboniumPageSinkProvider
         return new MemoryPageSink(pagesStore, tableId);
     }
 
-
     private static class MemoryPageSink
             implements ConnectorPageSink
     {

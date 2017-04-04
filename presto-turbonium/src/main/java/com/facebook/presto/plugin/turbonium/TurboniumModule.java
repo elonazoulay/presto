@@ -18,8 +18,8 @@ import com.facebook.presto.plugin.turbonium.config.UpdateMaxDataPerNodeProcedure
 import com.facebook.presto.plugin.turbonium.config.UpdateMaxTableSizePerNodeProcedure;
 import com.facebook.presto.plugin.turbonium.config.UpdateSplitsPerNodeProcedure;
 import com.facebook.presto.plugin.turbonium.systemtables.TurboniumConfigSystemTable;
-import com.facebook.presto.plugin.turbonium.systemtables.TurboniumInfoSystemTable;
 import com.facebook.presto.plugin.turbonium.systemtables.TurboniumTableIdSystemTable;
+import com.facebook.presto.plugin.turbonium.systemtables.TurboniumTableStatsSystemTable;
 import com.facebook.presto.spi.NodeManager;
 import com.facebook.presto.spi.SystemTable;
 import com.facebook.presto.spi.procedure.Procedure;
@@ -73,7 +73,7 @@ public class TurboniumModule
         configBinder(binder).bindConfig(TurboniumConfig.class);
         binder.bind(TurboniumConfigManager.class).in(Scopes.SINGLETON);
         Multibinder<SystemTable> tableBinder = newSetBinder(binder, SystemTable.class);
-        tableBinder.addBinding().to(TurboniumInfoSystemTable.class).in(Scopes.SINGLETON);
+        tableBinder.addBinding().to(TurboniumTableStatsSystemTable.class).in(Scopes.SINGLETON);
         tableBinder.addBinding().to(TurboniumConfigSystemTable.class).in(Scopes.SINGLETON);
         tableBinder.addBinding().to(TurboniumTableIdSystemTable.class).in(Scopes.SINGLETON);
         Multibinder.newSetBinder(binder, Procedure.class);
