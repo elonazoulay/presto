@@ -13,36 +13,24 @@
  */
 package com.facebook.presto.plugin.turbonium.storage;
 
-public class Column
+import org.openjdk.jol.info.ClassLayout;
+
+import java.util.BitSet;
+
+public class Util
 {
-    private final Segment[] segments;
-    private final long positionCount;
-    private final long sizeBytes;
+    private Util() {}
 
-    public Column(Segment[] segments, long positionCount, long sizeBytes)
+    private static final int BITSET_SIZE = ClassLayout.parseClass(BitSet.class).instanceSize();
+    private static final int ADDRESS_BITS = 3;
+
+    private static long longValuesBytes(long bits)
     {
-        this.segments = segments;
-        this.positionCount = positionCount;
-        this.sizeBytes = sizeBytes;
+        return bits >> ADDRESS_BITS;
     }
 
-    public Segment getSegment(int index)
+    public static long sizeOfBitSet(BitSet bitSet)
     {
-        return segments[index];
-    }
-
-    public int segmentCount()
-    {
-        return segments.length;
-    }
-
-    public long getPositionCount()
-    {
-        return positionCount;
-    }
-
-    public long getSizeBytes()
-    {
-        return sizeBytes;
+        return BITSET_SIZE + longValuesBytes(bitSet.size());
     }
 }

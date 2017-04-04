@@ -11,7 +11,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.facebook.presto.plugin.turbonium;
 
 import com.facebook.presto.plugin.turbonium.config.TurboniumConfigManager;

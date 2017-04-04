@@ -25,35 +25,55 @@ public abstract class AbstractColumnBuilder
 {
     private final int channel;
     private final Type type;
-    private final List<Boolean> valueIsNull = new ArrayList<>();
+    private final List<Segment> segmentBuilders;
+    private SegmentBuilder currentBuilder;
+    private long rowCount;
+    private long sizeBytes;
 
-    AbstractColumnBuilder(int channel, Type type)
+    public AbstractColumnBuilder(int channel, Type type)
     {
         this.channel = channel;
         this.type = type;
+        segmentBuilders = new ArrayList<>();
+        currentBuilder = createSegmentBuilder();
     }
 
-    @Override
+    protected abstract SegmentBuilder createSegmentBuilder();
+
     public int getChannel()
     {
         return channel;
     }
 
-    @Override
     public Type getType()
     {
         return type;
     }
 
-    protected abstract void appendValue(Block block, int position);
-
     @Override
-    public void appendFromPage(Page page)
+    public void appendPage(Page page)
     {
         Block block = page.getBlock(channel);
-        for (int position = 0; position < page.getPositionCount(); position++) {
-            appendValue(block, position);
+        for (int position = 0; position < block.getPositionCount(); position++) {
+            if (currentBuilder.isFull()) {
+                Segment segment = currentBuilder.build();
+                segmentBuilders.add(segment);
+                rowCount += segment.size();
+                sizeBytes += segment.getSizeBytes();
+                currentBuilder = createSegmentBuilder();
+            }
+            currentBuilder.append(block, position);
         }
     }
 
+    public Column build()
+    {
+        if (!currentBuilder.isEmpty()) {
+            Segment segment = currentBuilder.build();
+            segmentBuilders.add(segment);
+            rowCount += segment.size();
+            sizeBytes += segment.getSizeBytes();
+        }
+        return new Column(segmentBuilders.toArray(new Segment[0]), rowCount, sizeBytes);
+    }
 }

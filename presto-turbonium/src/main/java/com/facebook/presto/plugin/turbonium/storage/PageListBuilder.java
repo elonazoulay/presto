@@ -21,7 +21,7 @@ import com.google.common.collect.ImmutableList;
 
 import java.util.List;
 
-class PageListBuilder
+public class PageListBuilder
 {
     /* COPIED FROM RAPTOR */
     private final PageBuilder pageBuilder;

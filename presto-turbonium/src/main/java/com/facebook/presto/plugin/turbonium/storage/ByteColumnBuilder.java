@@ -1,5 +1,3 @@
-package com.facebook.presto.plugin.turbonium.stats;
-
 /*
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,24 +11,21 @@ package com.facebook.presto.plugin.turbonium.stats;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-public class LongStats {
-    private final long min;
-    private final long max;
-    private final int size;
-    private final int distinctValues;
-    private final int nullValues;
-    private final boolean sorted;
+package com.facebook.presto.plugin.turbonium.storage;
 
-    public LongStats(long min, long max, int size, int distinctValues, int nullValues, boolean sorted)
+import com.facebook.presto.spi.type.Type;
+
+public class ByteColumnBuilder
+        extends AbstractColumnBuilder
+{
+    public ByteColumnBuilder(int channel, Type type)
     {
-        this.min = min;
-        this.max = max;
-        this.size = size;
-        this.distinctValues = distinctValues;
-        this.nullValues = nullValues;
-        this.sorted = sorted;
+        super(channel, type);
     }
 
-
-
+    @Override
+    protected SegmentBuilder createSegmentBuilder()
+    {
+        return ByteSegments.builder(getChannel(), getType());
+    }
 }
