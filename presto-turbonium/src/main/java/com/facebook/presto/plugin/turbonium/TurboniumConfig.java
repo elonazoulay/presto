@@ -56,7 +56,7 @@ public class TurboniumConfig
         return maxTableSizePerNode;
     }
 
-    @Config("max-table-segmentCount-per-node")
+    @Config("max-table-size-per-node")
     public TurboniumConfig setMaxTableSizePerNode(DataSize maxTableSizePerNode)
     {
         this.maxTableSizePerNode = maxTableSizePerNode;
