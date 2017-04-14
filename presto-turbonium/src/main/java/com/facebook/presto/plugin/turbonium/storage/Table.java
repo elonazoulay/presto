@@ -66,7 +66,7 @@ public class Table
     {
         ImmutableList.Builder<Type> typesBuilder = ImmutableList.builder();
         for (int index = 0; index < columnIndexes.size(); index++) {
-            typesBuilder.add(types.get(index));
+            typesBuilder.add(types.get(columnIndexes.get(index)));
         }
         List<Type> columnTypes = typesBuilder.build();
         PageListBuilder builder = new PageListBuilder(columnTypes);

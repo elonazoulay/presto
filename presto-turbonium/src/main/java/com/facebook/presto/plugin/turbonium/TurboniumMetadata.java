@@ -88,7 +88,7 @@ public class TurboniumMetadata
     }
 
     @Override
-    public synchronized List<String> listSchemaNames(ConnectorSession session)
+    public List<String> listSchemaNames(ConnectorSession session)
     {
         return ImmutableList.of(SCHEMA_NAME);
     }
@@ -122,7 +122,7 @@ public class TurboniumMetadata
     }
 
     @Override
-    public synchronized Map<String, ColumnHandle> getColumnHandles(ConnectorSession session, ConnectorTableHandle tableHandle)
+    public Map<String, ColumnHandle> getColumnHandles(ConnectorSession session, ConnectorTableHandle tableHandle)
     {
         TurboniumTableHandle turboniumTableHandle = (TurboniumTableHandle) tableHandle;
         return turboniumTableHandle.getColumnHandles().stream()
@@ -130,7 +130,7 @@ public class TurboniumMetadata
     }
 
     @Override
-    public synchronized ColumnMetadata getColumnMetadata(ConnectorSession session, ConnectorTableHandle tableHandle, ColumnHandle columnHandle)
+    public ColumnMetadata getColumnMetadata(ConnectorSession session, ConnectorTableHandle tableHandle, ColumnHandle columnHandle)
     {
         TurboniumColumnHandle turboniumColumnHandle = (TurboniumColumnHandle) columnHandle;
         return turboniumColumnHandle.toColumnMetadata();
@@ -235,7 +235,7 @@ public class TurboniumMetadata
     }
 
     @Override
-    public synchronized List<ConnectorTableLayoutResult> getTableLayouts(
+    public List<ConnectorTableLayoutResult> getTableLayouts(
             ConnectorSession session,
             ConnectorTableHandle handle,
             Constraint<ColumnHandle> constraint,
@@ -244,11 +244,13 @@ public class TurboniumMetadata
         requireNonNull(handle, "handle is null");
         checkArgument(handle instanceof TurboniumTableHandle);
         TurboniumTableLayoutHandle layoutHandle = new TurboniumTableLayoutHandle((TurboniumTableHandle) handle);
+        log.info("COLUMN CONSTRAINT: %s\nDOMAINS %s\nPREDICATE: %s\nDESIRED COLUMNS %s", constraint.getSummary().getColumnDomains(), constraint.getSummary().getDomains(), constraint.predicate(), desiredColumns);
+        log.info("COLUMN HANDLES: %s", ((TurboniumTableHandle) handle).getColumnHandles());
         return ImmutableList.of(new ConnectorTableLayoutResult(getTableLayout(session, layoutHandle), constraint.getSummary()));
     }
 
     @Override
-    public synchronized ConnectorTableLayout getTableLayout(ConnectorSession session, ConnectorTableLayoutHandle handle)
+    public ConnectorTableLayout getTableLayout(ConnectorSession session, ConnectorTableLayoutHandle handle)
     {
         return new ConnectorTableLayout(
                 handle,
@@ -261,7 +263,7 @@ public class TurboniumMetadata
     }
 
     @Override
-    public synchronized Optional<ConnectorNewTableLayout> getNewTableLayout(ConnectorSession session, ConnectorTableMetadata tableMetadata)
+    public Optional<ConnectorNewTableLayout> getNewTableLayout(ConnectorSession session, ConnectorTableMetadata tableMetadata)
     {
         ImmutableList.Builder<String> partitionColumns = ImmutableList.builder();
         for (ColumnMetadata column : tableMetadata.getColumns()) {

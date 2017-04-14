@@ -119,7 +119,7 @@ public class TurboniumPagesStore
         builder.appendPage(page);
     }
 
-    public synchronized List<Page> getPages(Long tableId, int partNumber, int totalParts, List<Integer> columnIndexes)
+    public List<Page> getPages(Long tableId, int partNumber, int totalParts, List<Integer> columnIndexes)
     {
         try {
             lock.readLock().lock();
@@ -128,7 +128,6 @@ public class TurboniumPagesStore
             }
 
             Table table = requireNonNull(tables.get(tableId), "Failed to find table on worker");
-            table.getPages(partNumber, totalParts, columnIndexes);
             return table.getPages(partNumber, totalParts, columnIndexes);
         }
         finally {
