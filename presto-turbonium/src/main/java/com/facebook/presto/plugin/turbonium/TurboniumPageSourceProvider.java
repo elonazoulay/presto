@@ -22,6 +22,7 @@ import com.facebook.presto.spi.FixedPageSource;
 import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.connector.ConnectorPageSourceProvider;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
+import com.facebook.presto.spi.predicate.TupleDomain;
 
 import javax.inject.Inject;
 
@@ -52,11 +53,11 @@ public final class TurboniumPageSourceProvider
         long tableId = turboniumSplit.getTableHandle().getTableId();
         int partNumber = turboniumSplit.getPartNumber();
         int totalParts = turboniumSplit.getTotalPartsPerWorker();
-
+        TupleDomain<TurboniumColumnHandle> effectivePredicate = turboniumSplit.getEffectivePredicate();
         List<Integer> columnIndexes = columns.stream()
                 .map(TurboniumColumnHandle.class::cast)
                 .map(TurboniumColumnHandle::getColumnIndex).collect(toList());
-        List<Page> pages = pagesStore.getPages(tableId, partNumber, totalParts, columnIndexes);
+        List<Page> pages = pagesStore.getPages(tableId, partNumber, totalParts, columnIndexes, effectivePredicate);
 
         return new FixedPageSource(pages);
     }

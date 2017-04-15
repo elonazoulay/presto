@@ -17,8 +17,11 @@ import com.facebook.presto.plugin.turbonium.config.TurboniumConfigManager;
 import com.facebook.presto.plugin.turbonium.storage.Table;
 import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.PrestoException;
+import com.facebook.presto.spi.predicate.Domain;
+import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.type.Type;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import io.airlift.log.Logger;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -28,9 +31,11 @@ import javax.inject.Inject;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
@@ -47,6 +52,7 @@ public class TurboniumPagesStore
     private static final Logger log = Logger.get(TurboniumPagesStore.class);
     private final TurboniumConfigManager configManager;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+
     @GuardedBy("lock")
     private long currentBytes = 0;
 
@@ -99,7 +105,6 @@ public class TurboniumPagesStore
             }
             page.compact();
             long newSize = currentBytes + page.getRetainedSizeInBytes();
-            // TODO: base the memory limits on segment size not the source page size
             long newTableSize = tableSizes.get(tableId) + page.getRetainedSizeInBytes();
             long maxBytes = getMaxBytes();
             if (maxBytes < newSize) {
@@ -119,20 +124,35 @@ public class TurboniumPagesStore
         builder.appendPage(page);
     }
 
-    public List<Page> getPages(Long tableId, int partNumber, int totalParts, List<Integer> columnIndexes)
+    public List<Page> getPages(Long tableId, int partNumber, int totalParts, List<Integer> columnIndexes, TupleDomain<TurboniumColumnHandle> effectivePredicate)
     {
         try {
             lock.readLock().lock();
             if (!tables.containsKey(tableId)) {
                 throw new PrestoException(MISSING_DATA, "Failed to find table on a worker.");
             }
-
             Table table = requireNonNull(tables.get(tableId), "Failed to find table on worker");
-            return table.getPages(partNumber, totalParts, columnIndexes);
+            return table.getPages(partNumber, totalParts, columnIndexes, buildDomainFilter(columnIndexes, effectivePredicate));
         }
         finally {
             lock.readLock().unlock();
         }
+    }
+
+    private static Map<Integer, Domain> buildDomainFilter(List<Integer> columnIndexes, TupleDomain<TurboniumColumnHandle> effectivePredicate)
+    {
+        Set<Integer> columnIndexSet = new HashSet<>(columnIndexes);
+        ImmutableMap.Builder<Integer, Domain> domainsBuilder = ImmutableMap.builder();
+        Optional<Map<TurboniumColumnHandle, Domain>> tupleDomains = effectivePredicate.getDomains();
+        if (tupleDomains.isPresent()) {
+            for (Map.Entry<TurboniumColumnHandle, Domain> entry : tupleDomains.get().entrySet()) {
+                if (!columnIndexSet.contains(entry.getKey().getColumnIndex()) || entry.getValue().isAll()) {
+                    continue;
+                }
+                domainsBuilder.put(entry.getKey().getColumnIndex(), entry.getValue());
+            }
+        }
+        return domainsBuilder.build();
     }
 
     public List<Long> listTableIds()
@@ -146,7 +166,7 @@ public class TurboniumPagesStore
         }
     }
 
-    public synchronized SizeInfo getSize(Long tableId)
+    public SizeInfo getSize(Long tableId)
     {
         try {
             lock.readLock().lock();

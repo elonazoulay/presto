@@ -15,6 +15,7 @@ package com.facebook.presto.plugin.turbonium.storage;
 
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.block.BlockBuilder;
+import com.facebook.presto.spi.predicate.Domain;
 import com.facebook.presto.spi.type.Type;
 import org.openjdk.jol.info.ClassLayout;
 
@@ -33,74 +34,6 @@ public class DoubleColumnBuilder
     @Override
     protected SegmentBuilder createSegmentBuilder()
     {
-        return new DoubleSegment.Builder(getChannel(), getType());
-    }
-
-    public static class DoubleSegment
-            extends AbstractSegment
-    {
-        private static final int INSTANCE_SIZE = ClassLayout.parseClass(DoubleSegment.class).instanceSize();
-        private final double[] values;
-
-        public DoubleSegment(Type type, BitSet isNull, double[] values, int size)
-        {
-            super(type, isNull, size);
-            this.values = values;
-        }
-
-        @Override
-        protected void writeValue(BlockBuilder blockBuilder, int position)
-        {
-            blockBuilder.writeLong(Double.doubleToLongBits(values[position]));
-        }
-
-        @Override
-        public long getSizeBytes()
-        {
-            return INSTANCE_SIZE + isNullSizeBytes() + sizeOf(values);
-        }
-
-        public static class Builder
-                extends AbstractSegmentBuilder
-        {
-            private final double[] values = new double[DEFAULT_SEGMENT_SIZE];
-            private int internalPosition;
-            private final BitSet isNull = new BitSet(DEFAULT_SEGMENT_SIZE);
-
-            Builder(int channel, Type type)
-            {
-                super(channel, type);
-            }
-
-            private void appendValue(Block block, int position)
-            {
-                double extractedValue = getType().getDouble(block, position);
-                values[size()] = extractedValue;
-            }
-
-            @Override
-            public void append(Block block, int position)
-            {
-                if (block.isNull(position)) {
-                    isNull.set(internalPosition);
-                }
-                else {
-                    appendValue(block, position);
-                }
-                internalPosition++;
-            }
-
-            @Override
-            public int size()
-            {
-                return internalPosition;
-            }
-
-            @Override
-            public Segment build()
-            {
-                return new DoubleSegment(getType(), isNull, values, size());
-            }
-        }
+        return DoubleSegments.builder(getChannel(), getType());
     }
 }

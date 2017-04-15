@@ -49,12 +49,13 @@ import javax.inject.Inject;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 
 import static com.facebook.presto.spi.StandardErrorCode.NO_NODES_AVAILABLE;
@@ -71,12 +72,13 @@ public class TurboniumMetadata
 {
     private static final Logger log = Logger.get(TurboniumMetadata.class);
     public static final String SCHEMA_NAME = "memory";
+    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     private final NodeManager nodeManager;
     private final String connectorId;
     private final AtomicLong nextTableId = new AtomicLong();
-    private final Map<String, Long> tableIds = new ConcurrentHashMap<>();
-    private final Map<Long, TurboniumTableHandle> tables = new ConcurrentHashMap<>();
+    private final Map<String, Long> tableIds = new HashMap<>();
+    private final Map<Long, TurboniumTableHandle> tables = new HashMap<>();
     private final TurboniumConfigManager configManager;
 
     @Inject
@@ -94,31 +96,43 @@ public class TurboniumMetadata
     }
 
     @Override
-    public synchronized ConnectorTableHandle getTableHandle(ConnectorSession session, SchemaTableName tableName)
+    public ConnectorTableHandle getTableHandle(ConnectorSession session, SchemaTableName tableName)
     {
-        Long tableId = tableIds.get(tableName.getTableName());
-        if (tableId == null) {
-            return null;
+        try {
+            lock.readLock().lock();
+            Long tableId = tableIds.get(tableName.getTableName());
+            if (tableId == null) {
+                return null;
+            }
+            return tables.get(tableId);
         }
-        return tables.get(tableId);
+        finally {
+            lock.readLock().unlock();
+        }
     }
 
     @Override
-    public synchronized ConnectorTableMetadata getTableMetadata(ConnectorSession session, ConnectorTableHandle tableHandle)
+    public ConnectorTableMetadata getTableMetadata(ConnectorSession session, ConnectorTableHandle tableHandle)
     {
         TurboniumTableHandle turboniumTableHandle = (TurboniumTableHandle) tableHandle;
         return turboniumTableHandle.toTableMetadata();
     }
 
     @Override
-    public synchronized List<SchemaTableName> listTables(ConnectorSession session, String schemaNameOrNull)
+    public List<SchemaTableName> listTables(ConnectorSession session, String schemaNameOrNull)
     {
         if (schemaNameOrNull != null && !schemaNameOrNull.equals(SCHEMA_NAME)) {
             return ImmutableList.of();
         }
-        return tables.values().stream()
-                .map(TurboniumTableHandle::toSchemaTableName)
-                .collect(toList());
+        try {
+            lock.readLock().lock();
+            return tables.values().stream()
+                    .map(TurboniumTableHandle::toSchemaTableName)
+                    .collect(toList());
+        }
+        finally {
+            lock.readLock().unlock();
+        }
     }
 
     @Override
@@ -137,89 +151,113 @@ public class TurboniumMetadata
     }
 
     @Override
-    public synchronized Map<SchemaTableName, List<ColumnMetadata>> listTableColumns(ConnectorSession session, SchemaTablePrefix prefix)
+    public Map<SchemaTableName, List<ColumnMetadata>> listTableColumns(ConnectorSession session, SchemaTablePrefix prefix)
     {
-        return tables.values().stream()
-                .filter(table -> prefix.matches(table.toSchemaTableName()))
-                .collect(toMap(TurboniumTableHandle::toSchemaTableName, handle -> handle.toTableMetadata().getColumns()));
-    }
-
-    @Override
-    public synchronized void dropTable(ConnectorSession session, ConnectorTableHandle tableHandle)
-    {
-        TurboniumTableHandle handle = (TurboniumTableHandle) tableHandle;
-        Long tableId = tableIds.remove(handle.getTableName());
-        if (tableId != null) {
-            tables.remove(tableId);
+        try {
+            lock.readLock().lock();
+            return tables.values().stream()
+                    .filter(table -> prefix.matches(table.toSchemaTableName()))
+                    .collect(toMap(TurboniumTableHandle::toSchemaTableName, handle -> handle.toTableMetadata().getColumns()));
+        }
+        finally {
+            lock.readLock().unlock();
         }
     }
 
     @Override
-    public synchronized void renameTable(ConnectorSession session, ConnectorTableHandle tableHandle, SchemaTableName newTableName)
+    public void dropTable(ConnectorSession session, ConnectorTableHandle tableHandle)
     {
-        TurboniumTableHandle oldTableHandle = (TurboniumTableHandle) tableHandle;
-        TurboniumTableHandle newTableHandle = new TurboniumTableHandle(
-                oldTableHandle.getConnectorId(),
-                oldTableHandle.getSchemaName(),
-                newTableName.getTableName(),
-                oldTableHandle.getTableId(),
-                oldTableHandle.getColumnHandles(),
-                oldTableHandle.getHosts(),
-                oldTableHandle.getSplitsPerWorker());
-        tableIds.remove(oldTableHandle.getTableName());
-        tableIds.put(newTableName.getTableName(), oldTableHandle.getTableId());
-        tables.remove(oldTableHandle.getTableId());
-        tables.put(oldTableHandle.getTableId(), newTableHandle);
+        try {
+            lock.writeLock().lock();
+            TurboniumTableHandle handle = (TurboniumTableHandle) tableHandle;
+            Long tableId = tableIds.remove(handle.getTableName());
+            if (tableId != null) {
+                tables.remove(tableId);
+            }
+        }
+        finally {
+            lock.writeLock().unlock();
+        }
     }
 
     @Override
-    public synchronized void createTable(ConnectorSession session, ConnectorTableMetadata tableMetadata)
+    public void renameTable(ConnectorSession session, ConnectorTableHandle tableHandle, SchemaTableName newTableName)
+    {
+        try {
+            lock.writeLock().lock();
+            TurboniumTableHandle oldTableHandle = (TurboniumTableHandle) tableHandle;
+            TurboniumTableHandle newTableHandle = new TurboniumTableHandle(
+                    oldTableHandle.getConnectorId(),
+                    oldTableHandle.getSchemaName(),
+                    newTableName.getTableName(),
+                    oldTableHandle.getTableId(),
+                    oldTableHandle.getColumnHandles(),
+                    oldTableHandle.getHosts(),
+                    oldTableHandle.getSplitsPerWorker());
+            tableIds.remove(oldTableHandle.getTableName());
+            tableIds.put(newTableName.getTableName(), oldTableHandle.getTableId());
+            tables.remove(oldTableHandle.getTableId());
+            tables.put(oldTableHandle.getTableId(), newTableHandle);
+        }
+        finally {
+            lock.writeLock().unlock();
+        }
+    }
+
+    @Override
+    public void createTable(ConnectorSession session, ConnectorTableMetadata tableMetadata)
     {
         ConnectorOutputTableHandle outputTableHandle = beginCreateTable(session, tableMetadata, Optional.empty());
         finishCreateTable(session, outputTableHandle, ImmutableList.of());
     }
 
     @Override
-    public synchronized TurboniumOutputTableHandle beginCreateTable(ConnectorSession session, ConnectorTableMetadata tableMetadata, Optional<ConnectorNewTableLayout> layout)
+    public TurboniumOutputTableHandle beginCreateTable(ConnectorSession session, ConnectorTableMetadata tableMetadata, Optional<ConnectorNewTableLayout> layout)
     {
-        long nextId = nextTableId.getAndIncrement();
-        Set<Node> nodes = nodeManager.getRequiredWorkerNodes();
-        checkState(!nodes.isEmpty(), "No Memory nodes available");
-        Optional<TurboniumPartitioningHandle> partitioningHandle = layout
-                .map(ConnectorNewTableLayout::getPartitioning)
-                .map(TurboniumPartitioningHandle.class::cast);
-        checkState(partitioningHandle.isPresent(), "Invalid table layout, no partitioning");
-        long splitsPerWorker = partitioningHandle.get().getSplitsPerWorker();
-        List<String> nodeIds = partitioningHandle.get().getBucketToNode();
-        Map<String, Node> nodesById = uniqueIndex(nodes, Node::getNodeIdentifier);
-        ImmutableList.Builder<HostAddress> hosts = ImmutableList.builder();
-        for (String nodeId : nodeIds) {
-            Node node = nodesById.get(nodeId);
-            if (node == null) {
-                throw new PrestoException(NO_NODES_AVAILABLE, "Node for bucket is offline: " + nodeId);
+        try {
+            lock.writeLock().lock();
+            long nextId = nextTableId.getAndIncrement();
+            Set<Node> nodes = nodeManager.getRequiredWorkerNodes();
+            checkState(!nodes.isEmpty(), "No Memory nodes available");
+            Optional<TurboniumPartitioningHandle> partitioningHandle = layout
+                    .map(ConnectorNewTableLayout::getPartitioning)
+                    .map(TurboniumPartitioningHandle.class::cast);
+            checkState(partitioningHandle.isPresent(), "Invalid table layout, no partitioning");
+            long splitsPerWorker = partitioningHandle.get().getSplitsPerWorker();
+            List<String> nodeIds = partitioningHandle.get().getBucketToNode();
+            Map<String, Node> nodesById = uniqueIndex(nodes, Node::getNodeIdentifier);
+            ImmutableList.Builder<HostAddress> hosts = ImmutableList.builder();
+            for (String nodeId : nodeIds) {
+                Node node = nodesById.get(nodeId);
+                if (node == null) {
+                    throw new PrestoException(NO_NODES_AVAILABLE, "Node for bucket is offline: " + nodeId);
+                }
+                hosts.add(node.getHostAndPort());
             }
-            hosts.add(node.getHostAndPort());
+            tableIds.put(tableMetadata.getTable().getTableName(), nextId);
+            TurboniumConfigSpec config = configManager.getStaticConfig();
+            TurboniumTableHandle table = new TurboniumTableHandle(
+                    connectorId,
+                    nextId,
+                    tableMetadata,
+                    hosts.build(),
+                    splitsPerWorker);
+            tables.put(table.getTableId(), table);
+            return new TurboniumOutputTableHandle(table, ImmutableSet.copyOf(tableIds.values()), config);
         }
-        tableIds.put(tableMetadata.getTable().getTableName(), nextId);
-        TurboniumConfigSpec config = configManager.getStaticConfig();
-        TurboniumTableHandle table = new TurboniumTableHandle(
-                connectorId,
-                nextId,
-                tableMetadata,
-                hosts.build(),
-                splitsPerWorker);
-        tables.put(table.getTableId(), table);
-        return new TurboniumOutputTableHandle(table, ImmutableSet.copyOf(tableIds.values()), config);
+        finally {
+            lock.writeLock().unlock();
+        }
     }
 
     @Override
-    public synchronized Optional<ConnectorOutputMetadata> finishCreateTable(ConnectorSession session, ConnectorOutputTableHandle tableHandle, Collection<Slice> fragments)
+    public Optional<ConnectorOutputMetadata> finishCreateTable(ConnectorSession session, ConnectorOutputTableHandle tableHandle, Collection<Slice> fragments)
     {
         return Optional.empty();
     }
 
     @Override
-    public synchronized TurboniumInsertTableHandle beginInsert(ConnectorSession session, ConnectorTableHandle tableHandle)
+    public TurboniumInsertTableHandle beginInsert(ConnectorSession session, ConnectorTableHandle tableHandle)
     {
         TurboniumTableHandle turboniumTableHandle = (TurboniumTableHandle) tableHandle;
         // Preserve splitsPerWorker that table was created with
@@ -229,7 +267,7 @@ public class TurboniumMetadata
     }
 
     @Override
-    public synchronized Optional<ConnectorOutputMetadata> finishInsert(ConnectorSession session, ConnectorInsertTableHandle insertHandle, Collection<Slice> fragments)
+    public Optional<ConnectorOutputMetadata> finishInsert(ConnectorSession session, ConnectorInsertTableHandle insertHandle, Collection<Slice> fragments)
     {
         return Optional.empty();
     }
@@ -243,17 +281,23 @@ public class TurboniumMetadata
     {
         requireNonNull(handle, "handle is null");
         checkArgument(handle instanceof TurboniumTableHandle);
-        TurboniumTableLayoutHandle layoutHandle = new TurboniumTableLayoutHandle((TurboniumTableHandle) handle);
+        TurboniumTableHandle tableHandle = (TurboniumTableHandle) handle;
         log.info("COLUMN CONSTRAINT: %s\nDOMAINS %s\nPREDICATE: %s\nDESIRED COLUMNS %s", constraint.getSummary().getColumnDomains(), constraint.getSummary().getDomains(), constraint.predicate(), desiredColumns);
         log.info("COLUMN HANDLES: %s", ((TurboniumTableHandle) handle).getColumnHandles());
-        return ImmutableList.of(new ConnectorTableLayoutResult(getTableLayout(session, layoutHandle), constraint.getSummary()));
+        return ImmutableList.of(new ConnectorTableLayoutResult(getTableLayout(session, tableHandle, constraint.getSummary()), constraint.getSummary()));
     }
 
     @Override
     public ConnectorTableLayout getTableLayout(ConnectorSession session, ConnectorTableLayoutHandle handle)
     {
+        TurboniumTableLayoutHandle layoutHandle = (TurboniumTableLayoutHandle) handle;
+        return getTableLayout(session, layoutHandle.getTable(), layoutHandle.getConstraint());
+    }
+
+    private ConnectorTableLayout getTableLayout(ConnectorSession session, TurboniumTableHandle handle, TupleDomain<ColumnHandle> constraint)
+    {
         return new ConnectorTableLayout(
-                handle,
+                new TurboniumTableLayoutHandle(handle, constraint),
                 Optional.empty(),
                 TupleDomain.all(),
                 Optional.empty(),
@@ -280,6 +324,12 @@ public class TurboniumMetadata
 
     public synchronized Map<String, Long> getTableIds()
     {
-        return ImmutableMap.copyOf(tableIds);
+        try {
+            lock.readLock().lock();
+            return ImmutableMap.copyOf(tableIds);
+        }
+        finally {
+            lock.readLock().unlock();
+        }
     }
 }

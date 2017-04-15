@@ -15,8 +15,11 @@ package com.facebook.presto.plugin.turbonium.storage;
 
 import com.facebook.presto.plugin.turbonium.encodings.ByteEncoder;
 import com.facebook.presto.plugin.turbonium.stats.ByteStatsBuilder;
+import com.facebook.presto.plugin.turbonium.stats.Stats;
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.block.BlockBuilder;
+import com.facebook.presto.spi.predicate.Domain;
+import com.facebook.presto.spi.predicate.ValueSet;
 import com.facebook.presto.spi.type.Type;
 import org.openjdk.jol.info.ClassLayout;
 
@@ -26,6 +29,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static com.facebook.presto.plugin.turbonium.storage.Util.createDomain;
 import static io.airlift.slice.SizeOf.sizeOf;
 
 public class ByteSegments
@@ -38,11 +42,13 @@ public class ByteSegments
         private static final int INSTANCE_SIZE = ClassLayout.parseClass(Rle.class).instanceSize();
         private final int size;
         private final byte value;
+        private final Domain domain;
 
-        public Rle(int size, byte value)
+        public Rle(Type type, Stats<Byte> stats)
         {
-            this.size = size;
-            this.value = value;
+            this.size = stats.size();
+            this.value = stats.getSingleValue().get();
+            this.domain = Domain.singleValue(type, value);
         }
 
         @Override
@@ -62,6 +68,12 @@ public class ByteSegments
         {
             return INSTANCE_SIZE;
         }
+
+        @Override
+        public Domain getDomain()
+        {
+            return domain;
+        }
     }
 
     public static class RleWithNulls
@@ -69,10 +81,13 @@ public class ByteSegments
     {
         private static final int INSTANCE_SIZE = ClassLayout.parseClass(RleWithNulls.class).instanceSize();
         private final byte value;
-        public RleWithNulls(Type type, BitSet isNull, byte value, int size)
+        private final Domain domain;
+
+        public RleWithNulls(Type type, BitSet isNull, Stats<Byte> stats)
         {
-            super(type, isNull, size);
-            this.value = value;
+            super(type, isNull, stats.size());
+            this.value = stats.getSingleValue().get();
+            this.domain = Domain.create(ValueSet.of(type, value), true);
         }
 
         @Override
@@ -86,6 +101,12 @@ public class ByteSegments
         {
             return INSTANCE_SIZE + isNullSizeBytes();
         }
+
+        @Override
+        public Domain getDomain()
+        {
+            return domain;
+        }
     }
 
     public static class Dictionary
@@ -94,11 +115,14 @@ public class ByteSegments
         private static final int INSTANCE_SIZE = ClassLayout.parseClass(Dictionary.class).instanceSize();
         private final byte[] dictionary;
         private final byte[] values;
-        public Dictionary(Type type, BitSet isNull, Map<Byte, List<Integer>> distinctValues, int size)
+        private final Domain domain;
+
+        public Dictionary(Type type, BitSet isNull, Stats<Byte> stats)
         {
-            super(type, isNull, size);
+            super(type, isNull, stats.size());
+            Map<Byte, List<Integer>> distinctValues = stats.getDistinctValues().get();
             dictionary = new byte[distinctValues.size()];
-            values = new byte[size];
+            values = new byte[stats.size()];
             int dictionaryId = 0;
             for (Map.Entry<Byte, List<Integer>> entry : distinctValues.entrySet()) {
                 dictionary[dictionaryId] = entry.getKey();
@@ -107,6 +131,7 @@ public class ByteSegments
                 }
                 dictionaryId++;
             }
+            this.domain = createDomain(type, stats);
         }
 
         @Override
@@ -120,6 +145,12 @@ public class ByteSegments
         {
             return INSTANCE_SIZE + isNullSizeBytes() + sizeOf(dictionary) + sizeOf(values);
         }
+
+        @Override
+        public Domain getDomain()
+        {
+            return domain;
+        }
     }
 
     public static class SortedDictionary
@@ -128,11 +159,14 @@ public class ByteSegments
         private static final int INSTANCE_SIZE = ClassLayout.parseClass(SortedDictionary.class).instanceSize();
         private final byte[] dictionary;
         private final byte[] values;
-        public SortedDictionary(Type type, BitSet isNull, Map<Byte, List<Integer>> distinctValues, int size)
+        private final Domain domain;
+
+        public SortedDictionary(Type type, BitSet isNull, Stats<Byte> stats)
         {
-            super(type, isNull, size);
+            super(type, isNull, stats.size());
+            Map<Byte, List<Integer>> distinctValues = stats.getDistinctValues().get();
             dictionary = new byte[distinctValues.size()];
-            values = new byte[size];
+            values = new byte[stats.size()];
             int dictionaryId = 0;
             for (Iterator<Map.Entry<Byte, List<Integer>>> iterator = distinctValues.entrySet().stream()
                     .sorted(Comparator.comparing(Map.Entry::getKey)).iterator(); iterator.hasNext(); ) {
@@ -143,6 +177,7 @@ public class ByteSegments
                 }
                 dictionaryId++;
             }
+            this.domain = createDomain(type, stats);
         }
         @Override
         protected void writeValue(BlockBuilder blockBuilder, int position)
@@ -155,6 +190,12 @@ public class ByteSegments
         {
             return INSTANCE_SIZE + isNullSizeBytes() + sizeOf(dictionary) + sizeOf(values);
         }
+
+        @Override
+        public Domain getDomain()
+        {
+            return domain;
+        }
     }
 
     public static class Delta
@@ -163,12 +204,16 @@ public class ByteSegments
         private static final int INSTANCE_SIZE = ClassLayout.parseClass(Delta.class).instanceSize();
         private final byte offset;
         private final Values values;
-        public Delta(Type type, BitSet isNull, byte offset, Values values, int size)
+        private final Domain domain;
+
+        public Delta(Type type, BitSet isNull, Stats<Byte> stats, Values values)
         {
-            super(type, isNull, size);
-            this.offset = offset;
+            super(type, isNull, stats.size());
+            this.offset = stats.getMin().get();
             this.values = values;
+            this.domain = createDomain(type, stats);
         }
+
         @Override
         protected void writeValue(BlockBuilder blockBuilder, int position)
         {
@@ -180,18 +225,26 @@ public class ByteSegments
         {
             return INSTANCE_SIZE + isNullSizeBytes() + values.getSizeBytes();
         }
+
+        @Override
+        public Domain getDomain()
+        {
+            return domain;
+        }
     }
 
     public static class AllValues
             extends AbstractSegment
     {
-        private static final int INSTANCE_SIZE = ClassLayout.parseClass(Delta.class).instanceSize();
+        private static final int INSTANCE_SIZE = ClassLayout.parseClass(AllValues.class).instanceSize();
         private final byte[] values;
+        private final Domain domain;
 
-        public AllValues(Type type, BitSet isNull, byte[] values, int size)
+        public AllValues(Type type, BitSet isNull, Stats<Byte> stats, byte[] values)
         {
-            super(type, isNull, size);
+            super(type, isNull, stats.size());
             this.values = values;
+            this.domain = createDomain(type, stats);
         }
 
         @Override
@@ -204,6 +257,12 @@ public class ByteSegments
         public long getSizeBytes()
         {
             return INSTANCE_SIZE + isNullSizeBytes() + sizeOf(values);
+        }
+
+        @Override
+        public Domain getDomain()
+        {
+            return domain;
         }
     }
 

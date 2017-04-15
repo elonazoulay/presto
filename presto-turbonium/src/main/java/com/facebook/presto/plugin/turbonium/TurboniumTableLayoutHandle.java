@@ -13,7 +13,9 @@
  */
 package com.facebook.presto.plugin.turbonium;
 
+import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.ConnectorTableLayoutHandle;
+import com.facebook.presto.spi.predicate.TupleDomain;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -23,17 +25,26 @@ public class TurboniumTableLayoutHandle
         implements ConnectorTableLayoutHandle
 {
     private final TurboniumTableHandle table;
+    private final TupleDomain<ColumnHandle> constraint;
 
     @JsonCreator
-    public TurboniumTableLayoutHandle(@JsonProperty("table") TurboniumTableHandle table)
+    public TurboniumTableLayoutHandle(@JsonProperty("table") TurboniumTableHandle table,
+                                      @JsonProperty("constraint") TupleDomain<ColumnHandle> constraint)
     {
         this.table = requireNonNull(table, "table is null");
+        this.constraint = requireNonNull(constraint, "constraint is null");
     }
 
     @JsonProperty
     public TurboniumTableHandle getTable()
     {
         return table;
+    }
+
+    @JsonProperty
+    public TupleDomain<ColumnHandle> getConstraint()
+    {
+        return constraint;
     }
 
     public String getConnectorId()

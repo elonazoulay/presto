@@ -14,12 +14,11 @@
 package com.facebook.presto.plugin.turbonium.encodings;
 
 import com.facebook.presto.plugin.turbonium.stats.Stats;
-import com.facebook.presto.plugin.turbonium.storage.LongSegments.AllValues;
-import com.facebook.presto.plugin.turbonium.storage.LongSegments.Delta;
-import com.facebook.presto.plugin.turbonium.storage.LongSegments.Dictionary;
-import com.facebook.presto.plugin.turbonium.storage.LongSegments.Rle;
-import com.facebook.presto.plugin.turbonium.storage.LongSegments.RleWithNulls;
-import com.facebook.presto.plugin.turbonium.storage.LongSegments.SortedDictionary;
+import com.facebook.presto.plugin.turbonium.storage.DoubleSegments.AllValues;
+import com.facebook.presto.plugin.turbonium.storage.DoubleSegments.Dictionary;
+import com.facebook.presto.plugin.turbonium.storage.DoubleSegments.Rle;
+import com.facebook.presto.plugin.turbonium.storage.DoubleSegments.RleWithNulls;
+import com.facebook.presto.plugin.turbonium.storage.DoubleSegments.SortedDictionary;
 import com.facebook.presto.plugin.turbonium.storage.NullSegment;
 import com.facebook.presto.plugin.turbonium.storage.Segment;
 import com.facebook.presto.spi.type.Type;
@@ -28,12 +27,12 @@ import java.util.BitSet;
 
 import static com.facebook.presto.plugin.turbonium.encodings.DeltaValuesBuilder.buildLongValues;
 
-public class LongEncoder
-    extends AbstractEncoder<Long>
+public class DoubleEncoder
+    extends AbstractEncoder<Double>
 {
-    private final long[] values;
+    private final double[] values;
     private final BitSet isNull;
-    public LongEncoder(Stats<Long> stats, Type type, BitSet isNull, long[] values)
+    public DoubleEncoder(Stats<Double> stats, Type type, BitSet isNull, double[] values)
     {
         super(type, stats);
         this.values = values;
@@ -57,16 +56,9 @@ public class LongEncoder
             case SORTED_DICTIONARY:
                 return new SortedDictionary(type, isNull, stats);
             case DELTA:
-                return encodeDelta();
+                new AllValues(type, isNull, stats, values);
             default:
                 throw new IllegalStateException("undefined encoding");
         }
-    }
-
-    private Segment encodeDelta()
-    {
-        return buildLongValues(stats.getMin().get(), stats.getDelta().get(), values, stats.size())
-                .map(values -> (Segment) new Delta(type, isNull, stats, values))
-                .orElse(new AllValues(type, isNull, stats, values));
     }
 }

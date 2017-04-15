@@ -14,15 +14,20 @@
 package com.facebook.presto.plugin.turbonium.storage;
 
 import com.facebook.presto.spi.block.BlockBuilder;
+import com.facebook.presto.spi.predicate.Domain;
+import com.facebook.presto.spi.type.Type;
 
 public class NullSegment
     implements Segment
 {
     private final int size;
-    public NullSegment(int size)
+    private final Domain domain;
+    public NullSegment(Type type, int size)
     {
         this.size = size;
+        this.domain = Domain.onlyNull(type);
     }
+
     @Override
     public int size()
     {
@@ -33,5 +38,11 @@ public class NullSegment
     public void write(BlockBuilder blockBuilder, int position)
     {
         blockBuilder.appendNull();
+    }
+
+    @Override
+    public Domain getDomain()
+    {
+        return domain;
     }
 }

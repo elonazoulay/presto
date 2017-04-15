@@ -13,6 +13,11 @@
  */
 package com.facebook.presto.plugin.turbonium.storage;
 
+import com.facebook.presto.plugin.turbonium.stats.Stats;
+import com.facebook.presto.spi.predicate.Domain;
+import com.facebook.presto.spi.predicate.Range;
+import com.facebook.presto.spi.predicate.ValueSet;
+import com.facebook.presto.spi.type.Type;
 import org.openjdk.jol.info.ClassLayout;
 
 import java.util.BitSet;
@@ -32,5 +37,17 @@ public class Util
     public static long sizeOfBitSet(BitSet bitSet)
     {
         return BITSET_SIZE + longValuesBytes(bitSet.size());
+    }
+
+    public static <T> Domain createDomain(Type type, Stats<T> stats)
+    {
+        return Domain.create(
+                ValueSet.ofRanges(
+                        Range.range(
+                                type,
+                                stats.getMin().get(),
+                                true,
+                                stats.getMax().get(),
+                                true)), true);
     }
 }

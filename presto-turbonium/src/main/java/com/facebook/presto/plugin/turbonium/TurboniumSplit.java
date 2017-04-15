@@ -15,6 +15,7 @@ package com.facebook.presto.plugin.turbonium;
 
 import com.facebook.presto.spi.ConnectorSplit;
 import com.facebook.presto.spi.HostAddress;
+import com.facebook.presto.spi.predicate.TupleDomain;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.ImmutableList;
@@ -30,8 +31,9 @@ public class TurboniumSplit
         implements ConnectorSplit
 {
     private final TurboniumTableHandle tableHandle;
-    private final int totalPartsPerWorker; // how many concurrent reads there will be from one worker
     private final int partNumber; // part of the pages on one worker that this splits is responsible
+    private final int totalPartsPerWorker; // how many concurrent reads there will be from one worker
+    private final TupleDomain<TurboniumColumnHandle> effectivePredicate;
     private final List<HostAddress> addresses;
     private final int bucket;
 
@@ -40,6 +42,7 @@ public class TurboniumSplit
             @JsonProperty("tableHandle") TurboniumTableHandle tableHandle,
             @JsonProperty("partNumber") int partNumber,
             @JsonProperty("totalPartsPerWorker") int totalPartsPerWorker,
+            @JsonProperty("effectivePredicate") TupleDomain<TurboniumColumnHandle> effectivePredicate,
             @JsonProperty("addresses") List<HostAddress> addresses,
             @JsonProperty("bucket") int bucket)
     {
@@ -50,6 +53,7 @@ public class TurboniumSplit
         this.tableHandle = requireNonNull(tableHandle, "tableHandle is null");
         this.partNumber = partNumber;
         this.totalPartsPerWorker = totalPartsPerWorker;
+        this.effectivePredicate = requireNonNull(effectivePredicate, "effectivePredicate is null");
         this.addresses = ImmutableList.copyOf(requireNonNull(addresses, "addresses is null"));
         this.bucket = bucket;
     }
@@ -64,6 +68,12 @@ public class TurboniumSplit
     public int getTotalPartsPerWorker()
     {
         return totalPartsPerWorker;
+    }
+
+    @JsonProperty
+    public TupleDomain<TurboniumColumnHandle> getEffectivePredicate()
+    {
+        return effectivePredicate;
     }
 
     @JsonProperty

@@ -15,6 +15,7 @@ package com.facebook.presto.plugin.turbonium.storage;
 
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.block.BlockBuilder;
+import com.facebook.presto.spi.predicate.Domain;
 import com.facebook.presto.spi.type.Type;
 import io.airlift.slice.Slice;
 import org.openjdk.jol.info.ClassLayout;
@@ -42,11 +43,13 @@ public class SliceColumnBuilder
     {
         private static final int INSTANCE_SIZE = ClassLayout.parseClass(SliceSegment.class).instanceSize();
         private final Slice[] values;
+        private final Domain domain;
 
         public SliceSegment(Type type, BitSet isNull, Slice[] values, int size)
         {
             super(type, isNull, size);
             this.values = values;
+            this.domain = Domain.all(type);
         }
 
         @Override
@@ -59,6 +62,12 @@ public class SliceColumnBuilder
         public long getSizeBytes()
         {
             return INSTANCE_SIZE + isNullSizeBytes() + sizeOf(values);
+        }
+
+        @Override
+        public Domain getDomain()
+        {
+            return domain;
         }
 
         public static class Builder

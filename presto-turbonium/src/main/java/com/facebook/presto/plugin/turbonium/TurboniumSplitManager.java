@@ -14,6 +14,7 @@
 
 package com.facebook.presto.plugin.turbonium;
 
+import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorSplit;
 import com.facebook.presto.spi.ConnectorSplitSource;
@@ -22,6 +23,7 @@ import com.facebook.presto.spi.FixedSplitSource;
 import com.facebook.presto.spi.HostAddress;
 import com.facebook.presto.spi.connector.ConnectorSplitManager;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
+import com.facebook.presto.spi.predicate.TupleDomain;
 import com.google.common.collect.ImmutableList;
 
 import java.util.List;
@@ -46,10 +48,16 @@ public final class TurboniumSplitManager
                                 layout.getTable(),
                                 i,
                                 splitsPerNode,
+                                toTurboniumColumnHandle(layout.getConstraint()),
                                 ImmutableList.of(host),
                                 bucket));
             }
         }
         return new FixedSplitSource(splits.build());
+    }
+
+    private static TupleDomain<TurboniumColumnHandle> toTurboniumColumnHandle(TupleDomain<ColumnHandle> tupleDomain)
+    {
+        return tupleDomain.transform(handle -> (TurboniumColumnHandle) handle);
     }
 }

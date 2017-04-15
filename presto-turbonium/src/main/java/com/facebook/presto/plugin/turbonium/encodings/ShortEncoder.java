@@ -45,17 +45,17 @@ public class ShortEncoder
     {
         switch (encoding) {
             case NONE:
-                return new AllValues(type, isNull, values, stats.size());
+                return new AllValues(type, isNull, stats, values);
             case NULL:
-                return new NullSegment(stats.size());
+                return new NullSegment(type, stats.size());
             case RLE:
-                return new Rle(stats.size(), stats.getSingleValue().get());
+                return new Rle(type, stats);
             case RLE_NULL:
-                return new RleWithNulls(type, isNull, stats.getSingleValue().get(), stats.size());
+                return new RleWithNulls(type, isNull, stats);
             case DICTIONARY:
-                return new Dictionary(type, isNull, stats.getDistinctValues().get(), stats.size());
+                return new Dictionary(type, isNull, stats);
             case SORTED_DICTIONARY:
-                return new SortedDictionary(type, isNull, stats.getDistinctValues().get(), stats.size());
+                return new SortedDictionary(type, isNull, stats);
             case DELTA:
                 return encodeDelta();
             default:
@@ -66,7 +66,7 @@ public class ShortEncoder
     private Segment encodeDelta()
     {
         return buildShortValues(stats.getMin().get(), stats.getDelta().get(), values, stats.size())
-                .map(values -> (Segment) new Delta(type, isNull, stats.getMin().get(), values, stats.size()))
-                .orElse(new AllValues(type, isNull, values, stats.size()));
+                .map(values -> (Segment) new Delta(type, isNull, stats, values))
+                .orElse(new AllValues(type, isNull, stats, values));
     }
 }

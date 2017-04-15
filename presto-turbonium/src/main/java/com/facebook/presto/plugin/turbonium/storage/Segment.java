@@ -14,6 +14,7 @@
 package com.facebook.presto.plugin.turbonium.storage;
 
 import com.facebook.presto.spi.block.BlockBuilder;
+import com.facebook.presto.spi.predicate.Domain;
 
 public interface Segment
 {
@@ -23,4 +24,5 @@ public interface Segment
     {
         throw new UnsupportedOperationException();
     }
+    Domain getDomain();
 }

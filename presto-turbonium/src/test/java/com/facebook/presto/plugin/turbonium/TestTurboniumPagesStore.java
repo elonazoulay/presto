@@ -28,6 +28,7 @@ import com.facebook.presto.spi.NodeManager;
 import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.block.BlockBuilder;
+import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.testing.TestingConnectorSession;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -98,7 +99,7 @@ public class TestTurboniumPagesStore
     public void testCreateEmptyTable()
     {
         createTable(0L, 0L);
-        assertEquals(pagesStore.getPages(0L, 0, 1, ImmutableList.of(0)), ImmutableList.of());
+        assertEquals(pagesStore.getPages(0L, 0, 1, ImmutableList.of(0), TupleDomain.all()), ImmutableList.of());
     }
 
     @Test
@@ -106,13 +107,13 @@ public class TestTurboniumPagesStore
     {
         createTable(0L, 0L);
         insertToTable(0L, 0L);
-        assertEquals(pagesStore.getPages(0L, 0, 1, ImmutableList.of(0)).size(), 1);
+        assertEquals(pagesStore.getPages(0L, 0, 1, ImmutableList.of(0), TupleDomain.all()).size(), 1);
     }
 
     @Test(expectedExceptions = PrestoException.class)
     public void testReadFromUnknownTable()
     {
-        pagesStore.getPages(0L, 0, 1, ImmutableList.of(0));
+        pagesStore.getPages(0L, 0, 1, ImmutableList.of(0), TupleDomain.all());
     }
 
     @Test(expectedExceptions = PrestoException.class)

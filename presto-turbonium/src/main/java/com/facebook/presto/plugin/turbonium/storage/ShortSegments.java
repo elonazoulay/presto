@@ -15,8 +15,11 @@ package com.facebook.presto.plugin.turbonium.storage;
 
 import com.facebook.presto.plugin.turbonium.encodings.ShortEncoder;
 import com.facebook.presto.plugin.turbonium.stats.ShortStatsBuilder;
+import com.facebook.presto.plugin.turbonium.stats.Stats;
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.block.BlockBuilder;
+import com.facebook.presto.spi.predicate.Domain;
+import com.facebook.presto.spi.predicate.ValueSet;
 import com.facebook.presto.spi.type.Type;
 import org.openjdk.jol.info.ClassLayout;
 
@@ -26,6 +29,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static com.facebook.presto.plugin.turbonium.storage.Util.createDomain;
 import static io.airlift.slice.SizeOf.sizeOf;
 
 public class ShortSegments
@@ -38,11 +42,13 @@ public class ShortSegments
         private static final int INSTANCE_SIZE = ClassLayout.parseClass(Rle.class).instanceSize();
         private final int size;
         private final short value;
+        private final Domain domain;
 
-        public Rle(int size, short value)
+        public Rle(Type type, Stats<Short> stats)
         {
-            this.size = size;
-            this.value = value;
+            this.size = stats.size();
+            this.value = stats.getSingleValue().get();
+            this.domain = Domain.singleValue(type, value);
         }
 
         @Override
@@ -62,6 +68,12 @@ public class ShortSegments
         {
             return INSTANCE_SIZE;
         }
+
+        @Override
+        public Domain getDomain()
+        {
+            return domain;
+        }
     }
 
     public static class RleWithNulls
@@ -69,10 +81,13 @@ public class ShortSegments
     {
         private static final int INSTANCE_SIZE = ClassLayout.parseClass(RleWithNulls.class).instanceSize();
         private final short value;
-        public RleWithNulls(Type type, BitSet isNull, short value, int size)
+        private final Domain domain;
+
+        public RleWithNulls(Type type, BitSet isNull, Stats<Short> stats)
         {
-            super(type, isNull, size);
-            this.value = value;
+            super(type, isNull, stats.size());
+            this.value = stats.getSingleValue().get();
+            this.domain = Domain.create(ValueSet.of(type, value), true);
         }
 
         @Override
@@ -86,6 +101,12 @@ public class ShortSegments
         {
             return INSTANCE_SIZE + isNullSizeBytes();
         }
+
+        @Override
+        public Domain getDomain()
+        {
+            return domain;
+        }
     }
 
     public static class Dictionary
@@ -94,11 +115,14 @@ public class ShortSegments
         private static final int INSTANCE_SIZE = ClassLayout.parseClass(LongSegments.Dictionary.class).instanceSize();
         private final short[] dictionary;
         private final byte[] values;
-        public Dictionary(Type type, BitSet isNull, Map<Short, List<Integer>> distinctValues, int size)
+        private final Domain domain;
+
+        public Dictionary(Type type, BitSet isNull, Stats<Short> stats)
         {
-            super(type, isNull, size);
+            super(type, isNull, stats.size());
+            Map<Short, List<Integer>> distinctValues = stats.getDistinctValues().get();
             dictionary = new short[distinctValues.size()];
-            values = new byte[size];
+            values = new byte[stats.size()];
             int dictionaryId = 0;
             for (Map.Entry<Short, List<Integer>> entry : distinctValues.entrySet()) {
                 dictionary[dictionaryId] = entry.getKey();
@@ -107,6 +131,7 @@ public class ShortSegments
                 }
                 dictionaryId++;
             }
+            this.domain = createDomain(type, stats);
         }
 
         @Override
@@ -120,6 +145,12 @@ public class ShortSegments
         {
             return INSTANCE_SIZE + isNullSizeBytes() + sizeOf(dictionary) + sizeOf(values);
         }
+
+        @Override
+        public Domain getDomain()
+        {
+            return domain;
+        }
     }
 
     public static class SortedDictionary
@@ -128,11 +159,14 @@ public class ShortSegments
         private static final int INSTANCE_SIZE = ClassLayout.parseClass(SortedDictionary.class).instanceSize();
         private final short[] dictionary;
         private final byte[] values;
-        public SortedDictionary(Type type, BitSet isNull, Map<Short, List<Integer>> distinctValues, int size)
+        private final Domain domain;
+
+        public SortedDictionary(Type type, BitSet isNull, Stats<Short> stats)
         {
-            super(type, isNull, size);
+            super(type, isNull, stats.size());
+            Map<Short, List<Integer>> distinctValues = stats.getDistinctValues().get();
             dictionary = new short[distinctValues.size()];
-            values = new byte[size];
+            values = new byte[stats.size()];
             int dictionaryId = 0;
             for (Iterator<Map.Entry<Short, List<Integer>>> iterator = distinctValues.entrySet().stream()
                     .sorted(Comparator.comparing(Map.Entry::getKey)).iterator(); iterator.hasNext(); ) {
@@ -143,7 +177,9 @@ public class ShortSegments
                 }
                 dictionaryId++;
             }
+            this.domain = createDomain(type, stats);
         }
+
         @Override
         protected void writeValue(BlockBuilder blockBuilder, int position)
         {
@@ -155,6 +191,12 @@ public class ShortSegments
         {
             return INSTANCE_SIZE + isNullSizeBytes() + sizeOf(dictionary) + sizeOf(values);
         }
+
+        @Override
+        public Domain getDomain()
+        {
+            return domain;
+        }
     }
 
     public static class Delta
@@ -163,12 +205,16 @@ public class ShortSegments
         private static final int INSTANCE_SIZE = ClassLayout.parseClass(Delta.class).instanceSize();
         private final short offset;
         private final Values values;
-        public Delta(Type type, BitSet isNull, short offset, Values values, int size)
+        private final Domain domain;
+
+        public Delta(Type type, BitSet isNull, Stats<Short> stats, Values values)
         {
-            super(type, isNull, size);
-            this.offset = offset;
+            super(type, isNull, stats.size());
+            this.offset = stats.getMin().get();
             this.values = values;
+            this.domain = createDomain(type, stats);
         }
+
         @Override
         protected void writeValue(BlockBuilder blockBuilder, int position)
         {
@@ -180,6 +226,12 @@ public class ShortSegments
         {
             return INSTANCE_SIZE + isNullSizeBytes() + values.getSizeBytes();
         }
+
+        @Override
+        public Domain getDomain()
+        {
+            return domain;
+        }
     }
 
     public static class AllValues
@@ -187,11 +239,13 @@ public class ShortSegments
     {
         private static final int INSTANCE_SIZE = ClassLayout.parseClass(AllValues.class).instanceSize();
         private final short[] values;
+        private final Domain domain;
 
-        public AllValues(Type type, BitSet isNull, short[] values, int size)
+        public AllValues(Type type, BitSet isNull, Stats<Short> stats, short[] values)
         {
-            super(type, isNull, size);
+            super(type, isNull, stats.size());
             this.values = values;
+            this.domain = createDomain(type, stats);
         }
 
         @Override
@@ -204,6 +258,12 @@ public class ShortSegments
         public long getSizeBytes()
         {
             return INSTANCE_SIZE + isNullSizeBytes() + sizeOf(values);
+        }
+
+        @Override
+        public Domain getDomain()
+        {
+            return domain;
         }
     }
 
