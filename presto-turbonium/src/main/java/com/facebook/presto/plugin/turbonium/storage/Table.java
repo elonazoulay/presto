@@ -35,6 +35,7 @@ public class Table
     private final List<Type> types;
     private final List<Column> columns;
     private final long sizeBytes;
+    private final List<Long> columnSizes;
 
     private Table(List<Type> types, List<Column> columns)
     {
@@ -42,16 +43,25 @@ public class Table
         this.types = types;
         checkArgument(!requireNonNull(columns, "columns is null").isEmpty(), "columns is empty");
         this.columns = columns;
+        ImmutableList.Builder<Long> columnSizesBuilder = ImmutableList.builder();
         long sizeBytes = 0L;
+        int columnIndex = 0;
         for (Column column : columns) {
             sizeBytes += column.getSizeBytes();
+            columnSizesBuilder.add(column.getSizeBytes());
         }
         this.sizeBytes = sizeBytes;
+        columnSizes = columnSizesBuilder.build();
     }
 
     public long getSizeBytes()
     {
         return sizeBytes;
+    }
+
+    public List<Long> getColumnSizes()
+    {
+        return columnSizes;
     }
 
     public long getRowCount()

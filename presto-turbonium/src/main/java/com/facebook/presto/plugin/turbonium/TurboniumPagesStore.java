@@ -43,6 +43,7 @@ import java.util.stream.Collectors;
 import static com.facebook.presto.plugin.turbonium.TurboniumErrorCode.MEMORY_LIMIT_EXCEEDED;
 import static com.facebook.presto.plugin.turbonium.TurboniumErrorCode.MISSING_DATA;
 import static com.facebook.presto.plugin.turbonium.TurboniumErrorCode.TABLE_SIZE_PER_NODE_EXCEEDED;
+import static com.google.common.base.Preconditions.checkState;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 
@@ -71,6 +72,9 @@ public class TurboniumPagesStore
     @GuardedBy("lock")
     private final Map<Long, Long> tableSizes = new HashMap<>();
 
+    @GuardedBy("lock")
+    private final Map<Long, long[]> columnSizes = new HashMap<>();
+
     private long getMaxBytes()
     {
         return configManager.getConfig().getMaxDataPerNode().toBytes();
@@ -88,6 +92,7 @@ public class TurboniumPagesStore
             if (!tableBuilder.containsKey(tableId)) {
                 tableBuilder.put(tableId, Table.builder(extractTypes(tableHandle)));
                 tableSizes.put(tableId, 0L);
+                columnSizes.put(tableId, new long[tableHandle.getColumnHandles().size()]);
             }
         }
         finally {
@@ -116,6 +121,10 @@ public class TurboniumPagesStore
             }
             currentBytes = newSize;
             tableSizes.put(tableId, newSize);
+            long[] columnSize = columnSizes.get(tableId);
+            for (int channel = 0; channel < page.getChannelCount(); channel++) {
+                columnSize[channel] += page.getBlock(channel).getRetainedSizeInBytes();
+            }
             builder = tableBuilder.get(tableId);
         }
         finally {
@@ -180,6 +189,23 @@ public class TurboniumPagesStore
         }
     }
 
+    public List<ColumnSizeInfo> getColumnSizes(Long tableId)
+    {
+        try {
+            lock.readLock().lock();
+            List<Long> columnSize = tables.get(tableId).getColumnSizes();
+            long[] sourceSizes = columnSizes.get(tableId);
+            checkState(columnSize.size() == sourceSizes.length, "Column counts mismatch between source and in memory");
+            ImmutableList.Builder<ColumnSizeInfo> builder = ImmutableList.builder();
+            for (int columnIndex = 0; columnIndex < sourceSizes.length; columnIndex++) {
+                builder.add(new ColumnSizeInfo(columnSize.get(columnIndex), sourceSizes[columnIndex]));
+            }
+            return builder.build();
+        }
+        finally {
+            lock.readLock().unlock();
+        }
+    }
     public boolean contains(Long tableId)
     {
         try {
@@ -266,6 +292,28 @@ public class TurboniumPagesStore
         {
             return pageCount;
         }
+        public long getSourceSize()
+        {
+            return sourceSize;
+        }
+    }
+
+    public static class ColumnSizeInfo
+    {
+        private final long byteSize;
+        private final long sourceSize;
+
+        public ColumnSizeInfo(long byteSize, long sourceSize)
+        {
+            this.byteSize = byteSize;
+            this.sourceSize = sourceSize;
+        }
+
+        public long getSizeBytes()
+        {
+            return byteSize;
+        }
+
         public long getSourceSize()
         {
             return sourceSize;
