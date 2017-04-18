@@ -100,7 +100,7 @@ public class SliceSegments
         @Override
         public long getSizeBytes()
         {
-            return INSTANCE_SIZE + value.getRetainedSize();
+            return INSTANCE_SIZE + isNullSizeBytes() + value.getRetainedSize();
         }
 
         @Override
@@ -195,6 +195,11 @@ public class SliceSegments
         {
             return domain;
         }
+    }
+
+    public static Builder builder(int channel, Type type)
+    {
+        return new Builder(channel, type);
     }
 
     public static class Builder

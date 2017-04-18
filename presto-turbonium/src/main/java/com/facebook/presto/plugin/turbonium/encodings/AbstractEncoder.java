@@ -30,27 +30,27 @@ public abstract class AbstractEncoder<T>
         this.encoding = determineEncoding();
     }
 
-    private boolean doNull()
+    protected boolean doNull()
     {
         return stats.getNonNullCount() == 0 && stats.getNullCount() > 0;
     }
 
-    private boolean doRle()
+    protected boolean doRle()
     {
         return stats.getSingleValue().isPresent() && stats.getNullCount() == 0;
     }
 
-    private boolean doRleNull()
+    protected boolean doRleNull()
     {
         return stats.getSingleValue().isPresent() && stats.getNullCount() > 0;
     }
 
-    private boolean doDictionary()
+    protected boolean doDictionary()
     {
         return stats.getDistinctValues().isPresent();
     }
 
-    private boolean doDelta()
+    protected boolean doDelta()
     {
         return stats.getDelta().isPresent();
     }
