@@ -47,8 +47,10 @@ public interface ColumnBuilder
                     else {
                         return new LongColumnBuilder(channel, type);
                     }
+                case 16:
+                    return new SliceColumnBuilder(channel, type);
                 default:
-                    throw new IllegalArgumentException("Unsupported segmentCount");
+                    throw new IllegalArgumentException(String.format("Unsupported segmentCount: %s", size));
             }
         }
         else {

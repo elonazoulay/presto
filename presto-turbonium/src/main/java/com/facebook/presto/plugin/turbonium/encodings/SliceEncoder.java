@@ -14,13 +14,12 @@
 package com.facebook.presto.plugin.turbonium.encodings;
 
 import com.facebook.presto.plugin.turbonium.stats.Stats;
+import com.facebook.presto.plugin.turbonium.storage.NullSegment;
+import com.facebook.presto.plugin.turbonium.storage.Segment;
 import com.facebook.presto.plugin.turbonium.storage.SliceSegments.AllValues;
 import com.facebook.presto.plugin.turbonium.storage.SliceSegments.Dictionary;
 import com.facebook.presto.plugin.turbonium.storage.SliceSegments.Rle;
 import com.facebook.presto.plugin.turbonium.storage.SliceSegments.RleWithNulls;
-
-import com.facebook.presto.plugin.turbonium.storage.NullSegment;
-import com.facebook.presto.plugin.turbonium.storage.Segment;
 import com.facebook.presto.spi.type.Type;
 import io.airlift.slice.Slice;
 

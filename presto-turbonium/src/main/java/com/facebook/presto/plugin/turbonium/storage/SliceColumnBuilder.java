@@ -13,16 +13,7 @@
  */
 package com.facebook.presto.plugin.turbonium.storage;
 
-import com.facebook.presto.spi.block.Block;
-import com.facebook.presto.spi.block.BlockBuilder;
-import com.facebook.presto.spi.predicate.Domain;
 import com.facebook.presto.spi.type.Type;
-import io.airlift.slice.Slice;
-import org.openjdk.jol.info.ClassLayout;
-
-import java.util.BitSet;
-
-import static io.airlift.slice.SizeOf.sizeOf;
 
 public class SliceColumnBuilder
         extends AbstractColumnBuilder

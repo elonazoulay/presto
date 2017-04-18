@@ -45,4 +45,10 @@ public class NullSegment
     {
         return domain;
     }
+
+    @Override
+    public long getSizeBytes()
+    {
+        return 0L;
+    }
 }

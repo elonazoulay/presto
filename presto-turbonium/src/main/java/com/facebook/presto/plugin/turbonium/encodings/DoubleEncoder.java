@@ -25,8 +25,6 @@ import com.facebook.presto.spi.type.Type;
 
 import java.util.BitSet;
 
-import static com.facebook.presto.plugin.turbonium.encodings.DeltaValuesBuilder.buildLongValues;
-
 public class DoubleEncoder
     extends AbstractEncoder<Double>
 {

@@ -14,9 +14,7 @@
 package com.facebook.presto.plugin.turbonium.storage;
 
 import com.facebook.presto.plugin.turbonium.encodings.BooleanEncoder;
-import com.facebook.presto.plugin.turbonium.encodings.ByteEncoder;
 import com.facebook.presto.plugin.turbonium.stats.BooleanStatsBuilder;
-import com.facebook.presto.plugin.turbonium.stats.ByteStatsBuilder;
 import com.facebook.presto.plugin.turbonium.stats.Stats;
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.block.BlockBuilder;
@@ -26,10 +24,6 @@ import com.facebook.presto.spi.type.Type;
 import org.openjdk.jol.info.ClassLayout;
 
 import java.util.BitSet;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
 
 import static com.facebook.presto.plugin.turbonium.storage.Util.createDomain;
 import static com.facebook.presto.spi.type.BooleanType.BOOLEAN;
@@ -156,7 +150,7 @@ public class BooleanSegments
         private final boolean[] values = new boolean[DEFAULT_SEGMENT_SIZE];
         private int internalPosition;
         private final BitSet isNull = new BitSet(DEFAULT_SEGMENT_SIZE);
-        private final BooleanStatsBuilder statsBuilder = new BooleanStatsBuilder ();
+        private final BooleanStatsBuilder statsBuilder = new BooleanStatsBuilder();
 
         private Builder(int channel, Type type)
         {

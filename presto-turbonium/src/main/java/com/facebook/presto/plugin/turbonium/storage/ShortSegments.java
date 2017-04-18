@@ -21,6 +21,7 @@ import com.facebook.presto.spi.block.BlockBuilder;
 import com.facebook.presto.spi.predicate.Domain;
 import com.facebook.presto.spi.predicate.ValueSet;
 import com.facebook.presto.spi.type.Type;
+import com.google.common.primitives.Primitives;
 import org.openjdk.jol.info.ClassLayout;
 
 import java.util.BitSet;
@@ -48,7 +49,7 @@ public class ShortSegments
         {
             this.size = stats.size();
             this.value = stats.getSingleValue().get();
-            this.domain = Domain.singleValue(type, value);
+            this.domain = Domain.singleValue(type, Primitives.wrap(type.getJavaType()).cast(((Number) value).longValue()));
         }
 
         @Override
@@ -87,7 +88,7 @@ public class ShortSegments
         {
             super(type, isNull, stats.size());
             this.value = stats.getSingleValue().get();
-            this.domain = Domain.create(ValueSet.of(type, value), true);
+            this.domain = Domain.create(ValueSet.of(type, Primitives.wrap(type.getJavaType()).cast(((Number) value).longValue())), true);
         }
 
         @Override
