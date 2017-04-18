@@ -40,6 +40,12 @@ public class DoubleEncoder
     }
 
     @Override
+    protected boolean doDelta()
+    {
+        return false;
+    }
+
+    @Override
     public Segment encode()
     {
         switch (encoding) {
@@ -55,8 +61,6 @@ public class DoubleEncoder
                 return new Dictionary(type, isNull, stats);
             case SORTED_DICTIONARY:
                 return new SortedDictionary(type, isNull, stats);
-            case DELTA:
-                new AllValues(type, isNull, stats, values);
             default:
                 throw new IllegalStateException("undefined encoding");
         }

@@ -142,14 +142,15 @@ public class Table
 
         public synchronized void appendPage(Page page)
         {
-            for (int channel = 0; channel < types.size(); channel++) {
+            columnBuilders.parallelStream().forEach(builder -> builder.appendPage(page));
+            /*for (int channel = 0; channel < types.size(); channel++) {
                 columnBuilders.get(channel).appendPage(page);
-            }
+            }*/
         }
 
         public synchronized Table build()
         {
-            return new Table(types, columnBuilders.stream().map(ColumnBuilder::build).collect(Collectors.toList()));
+            return new Table(types, columnBuilders.parallelStream().map(ColumnBuilder::build).collect(Collectors.toList()));
         }
     }
 }

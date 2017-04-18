@@ -18,6 +18,7 @@ import com.facebook.presto.spi.predicate.Domain;
 import com.facebook.presto.spi.predicate.Range;
 import com.facebook.presto.spi.predicate.ValueSet;
 import com.facebook.presto.spi.type.Type;
+import com.google.common.primitives.Primitives;
 import org.openjdk.jol.info.ClassLayout;
 
 import java.util.BitSet;
@@ -41,6 +42,17 @@ public class Util
 
     public static <T> Domain createDomain(Type type, Stats<T> stats)
     {
+        T min = stats.getMin().get();
+        if (min.getClass().equals(Integer.class)) {
+            return Domain.create(
+                    ValueSet.ofRanges(
+                            Range.range(
+                                    type,
+                                    Primitives.wrap(type.getJavaType()).cast(((Number) stats.getMin().get()).longValue()),
+                                    true,
+                                    Primitives.wrap(type.getJavaType()).cast(((Number) stats.getMax().get()).longValue()),
+                                    true)), true);
+        }
         return Domain.create(
                 ValueSet.ofRanges(
                         Range.range(

@@ -129,7 +129,7 @@ public class SliceSegments
             int dictionaryId = 0;
             for (Map.Entry<Slice, List<Integer>> entry : distinctValues.entrySet()) {
                 dictionary[dictionaryId] = entry.getKey();
-                sizeOf += entry.getKey().getRetainedSize();
+                sizeOf += entry.getKey().length();
                 for (int position : entry.getValue()) {
                     values[position] = (byte) dictionaryId;
                 }
@@ -148,7 +148,7 @@ public class SliceSegments
         @Override
         public long getSizeBytes()
         {
-            return INSTANCE_SIZE + isNullSizeBytes() + sizeOf(dictionary) + sizeOf(values) + sizeOfSlices;
+            return INSTANCE_SIZE + isNullSizeBytes() + sizeOf(values) + sizeOfSlices;
         }
 
         @Override
@@ -173,7 +173,9 @@ public class SliceSegments
             this.domain = createDomain(type, stats);
             long sizeOf = 0L;
             for (Slice value : values) {
-                sizeOf += value.getRetainedSize();
+                if (value != null) {
+                    sizeOf += value.length();
+                }
             }
             sizeOfSlices = sizeOf;
         }

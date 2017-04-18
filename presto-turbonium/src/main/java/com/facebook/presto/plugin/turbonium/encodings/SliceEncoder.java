@@ -40,6 +40,12 @@ public class SliceEncoder
     }
 
     @Override
+    protected boolean doDelta()
+    {
+        return false;
+    }
+
+    @Override
     public Segment encode()
     {
         switch (encoding) {
@@ -53,10 +59,6 @@ public class SliceEncoder
                 return new RleWithNulls(type, isNull, stats);
             case DICTIONARY:
                 return new Dictionary(type, isNull, stats);
-            case SORTED_DICTIONARY:
-                return new Dictionary(type, isNull, stats);
-            case DELTA:
-                return new AllValues(type, isNull, stats, values);
             default:
                 throw new IllegalStateException("undefined encoding");
         }

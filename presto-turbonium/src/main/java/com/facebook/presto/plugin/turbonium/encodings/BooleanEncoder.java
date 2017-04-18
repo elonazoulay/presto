@@ -36,6 +36,18 @@ public class BooleanEncoder
     }
 
     @Override
+    protected boolean doDictionary()
+    {
+        return false;
+    }
+
+    @Override
+    protected boolean doDelta()
+    {
+        return false;
+    }
+
+    @Override
     public Segment encode()
     {
         switch (encoding) {
@@ -47,12 +59,6 @@ public class BooleanEncoder
                 return new Rle(type, stats);
             case RLE_NULL:
                 return new RleWithNulls(type, isNull, stats);
-            case DICTIONARY:
-                return new AllValues(type, isNull, stats, values);
-            case SORTED_DICTIONARY:
-                return new AllValues(type, isNull, stats, values);
-            case DELTA:
-                return new AllValues(type, isNull, stats, values);
             default:
                 throw new IllegalStateException("undefined encoding");
         }

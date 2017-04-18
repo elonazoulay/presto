@@ -112,7 +112,7 @@ public class ShortSegments
     public static class Dictionary
         extends AbstractSegment
     {
-        private static final int INSTANCE_SIZE = ClassLayout.parseClass(LongSegments.Dictionary.class).instanceSize();
+        private static final int INSTANCE_SIZE = ClassLayout.parseClass(Dictionary.class).instanceSize();
         private final short[] dictionary;
         private final byte[] values;
         private final Domain domain;

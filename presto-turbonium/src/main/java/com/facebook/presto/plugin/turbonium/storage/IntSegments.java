@@ -48,7 +48,7 @@ public class IntSegments
         {
             this.size = stats.size();
             this.value = stats.getSingleValue().get();
-            this.domain = Domain.singleValue(type, value);
+            this.domain = Domain.singleValue(type, (long) value);
         }
 
         @Override
