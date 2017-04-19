@@ -232,9 +232,9 @@ public class DoubleSegments
         }
     }
 
-    public static Builder builder(int channel, Type type)
+    public static Builder builder(int channel, Type type, boolean disableEncoding)
     {
-        return new Builder(channel, type);
+        return new Builder(channel, type, disableEncoding);
     }
 
     public static class Builder
@@ -245,9 +245,9 @@ public class DoubleSegments
         private final BitSet isNull = new BitSet(DEFAULT_SEGMENT_SIZE);
         private final DoubleStatsBuilder statsBuilder = new DoubleStatsBuilder();
 
-        private Builder(int channel, Type type)
+        private Builder(int channel, Type type, boolean disableEncoding)
         {
-            super(channel, type);
+            super(channel, type, disableEncoding);
         }
 
         @Override
@@ -279,7 +279,7 @@ public class DoubleSegments
         @Override
         public Segment build()
         {
-            return new DoubleEncoder(statsBuilder.build(), getType(), isNull, values).encode();
+            return new DoubleEncoder(getDisableEncoding(), statsBuilder.build(), getType(), isNull, values).encode();
         }
     }
 }

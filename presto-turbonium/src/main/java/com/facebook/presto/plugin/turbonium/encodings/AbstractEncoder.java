@@ -22,11 +22,12 @@ public abstract class AbstractEncoder<T>
     protected final Type type;
     protected final Stats<T> stats;
     protected final StandardEncodings encoding;
-
-    public AbstractEncoder(Type type, Stats<T> stats)
+    private final boolean disableEncoding;
+    public AbstractEncoder(Type type, Stats<T> stats, boolean disableEncoding)
     {
         this.type = type;
         this.stats = stats;
+        this.disableEncoding = disableEncoding;
         this.encoding = determineEncoding();
     }
 
@@ -57,7 +58,10 @@ public abstract class AbstractEncoder<T>
 
     private StandardEncodings determineEncoding()
     {
-        if (doNull()) {
+        if (disableEncoding) {
+            return StandardEncodings.NONE;
+        }
+        else if (doNull()) {
             return StandardEncodings.NULL;
         }
         else if (doRle()) {

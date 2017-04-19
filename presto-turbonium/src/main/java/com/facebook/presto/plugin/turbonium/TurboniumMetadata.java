@@ -262,7 +262,7 @@ public class TurboniumMetadata
         TurboniumTableHandle turboniumTableHandle = (TurboniumTableHandle) tableHandle;
         // Preserve splitsPerWorker that table was created with
         TurboniumConfigSpec spec = configManager.getStaticConfig();
-        TurboniumConfigSpec newSpec = new TurboniumConfigSpec(spec.getMaxDataPerNode(), spec.getMaxTableSizePerNode(), turboniumTableHandle.getSplitsPerWorker());
+        TurboniumConfigSpec newSpec = new TurboniumConfigSpec(spec.getMaxDataPerNode(), spec.getMaxTableSizePerNode(), turboniumTableHandle.getSplitsPerWorker(), spec.getDisableEncoding());
         return new TurboniumInsertTableHandle(turboniumTableHandle, ImmutableSet.copyOf(tableIds.values()), newSpec);
     }
 

@@ -23,17 +23,20 @@ public final class TurboniumConfigSpec
     private final long maxDataPerNode;
     private final long maxTableSizePerNode;
     private final long splitsPerNode;
+    private final boolean disableEncoding;
 
     @JsonCreator
     public TurboniumConfigSpec(
             @JsonProperty("maxDataPerNode") long maxDataPerNode,
             @JsonProperty("maxTableSizePerNode") long maxTableSizePerNode,
-            @JsonProperty("splitsPerNode") long splitsPerNode
+            @JsonProperty("splitsPerNode") long splitsPerNode,
+            @JsonProperty("disableEncoding") boolean disableEncoding
     )
     {
         this.maxDataPerNode = maxDataPerNode;
         this.maxTableSizePerNode = maxTableSizePerNode;
         this.splitsPerNode = splitsPerNode;
+        this.disableEncoding = disableEncoding;
     }
 
     @JsonProperty
@@ -54,6 +57,12 @@ public final class TurboniumConfigSpec
         return splitsPerNode;
     }
 
+    @JsonProperty
+    public boolean getDisableEncoding()
+    {
+        return disableEncoding;
+    }
+
     @Override
     public String toString()
     {
@@ -61,6 +70,7 @@ public final class TurboniumConfigSpec
                 .add("max_data_per_node", maxDataPerNode)
                 .add("max_table_size_per_node", maxTableSizePerNode)
                 .add("splits_per_node", splitsPerNode)
+                .add("disable_encoding", disableEncoding)
                 .toString();
     }
 }

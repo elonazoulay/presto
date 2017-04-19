@@ -18,14 +18,14 @@ import com.facebook.presto.spi.type.Type;
 public class SliceColumnBuilder
         extends AbstractColumnBuilder
 {
-    public SliceColumnBuilder(int channel, Type type)
+    public SliceColumnBuilder(int channel, Type type, boolean disableEncoding)
     {
-        super(channel, type);
+        super(channel, type, disableEncoding);
     }
 
     @Override
     protected SegmentBuilder createSegmentBuilder()
     {
-        return SliceSegments.builder(getChannel(), getType());
+        return SliceSegments.builder(getChannel(), getType(), getDisableEncoding());
     }
 }

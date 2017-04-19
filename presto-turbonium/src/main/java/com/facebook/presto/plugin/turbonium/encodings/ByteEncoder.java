@@ -33,9 +33,9 @@ public class ByteEncoder
 {
     private final byte[] values;
     private final BitSet isNull;
-    public ByteEncoder(Stats<Byte> stats, Type type, BitSet isNull, byte[] values)
+    public ByteEncoder(boolean disableEncoding, Stats<Byte> stats, Type type, BitSet isNull, byte[] values)
     {
-        super(type, stats);
+        super(type, stats, disableEncoding);
         this.values = values;
         this.isNull = isNull;
     }

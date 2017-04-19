@@ -85,12 +85,17 @@ public class TurboniumPagesStore
         return configManager.getConfig().getMaxTableSizePerNode().toBytes();
     }
 
+    private boolean getDisableEncodings()
+    {
+        return configManager.getConfig().getDisableEncoding();
+    }
+
     public void initialize(long tableId, TurboniumTableHandle tableHandle)
     {
         try {
             lock.writeLock().lock();
             if (!tableBuilder.containsKey(tableId)) {
-                tableBuilder.put(tableId, Table.builder(extractTypes(tableHandle)));
+                tableBuilder.put(tableId, Table.builder(extractTypes(tableHandle), getDisableEncodings()));
                 tableSizes.put(tableId, 0L);
                 columnSizes.put(tableId, new long[tableHandle.getColumnHandles().size()]);
             }
@@ -243,6 +248,7 @@ public class TurboniumPagesStore
                     tablePages.remove();
                     tableSizes.remove(tableId);
                     tableBuilder.remove(tableId);
+                    columnSizes.remove(tableId);
                     tables.remove(tableId);
                 }
             }

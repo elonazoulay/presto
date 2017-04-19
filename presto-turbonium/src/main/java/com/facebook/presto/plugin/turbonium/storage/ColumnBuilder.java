@@ -24,37 +24,37 @@ public interface ColumnBuilder
     void appendPage(Page page);
     Column build();
 
-    static ColumnBuilder create(int channel, Type type)
+    static ColumnBuilder create(int channel, Type type, boolean disableEncoding)
     {
         if (type instanceof FixedWidthType) {
             int size = ((FixedWidthType) type).getFixedSize();
             switch (size) {
                 case 1:
                     if (type.getJavaType() == boolean.class) {
-                        return new BooleanColumnBuilder(channel, type);
+                        return new BooleanColumnBuilder(channel, type, disableEncoding);
                     }
                     else {
-                        return new ByteColumnBuilder(channel, type);
+                        return new ByteColumnBuilder(channel, type, disableEncoding);
                     }
                 case 2:
-                    return new ShortColumnBuilder(channel, type);
+                    return new ShortColumnBuilder(channel, type, disableEncoding);
                 case 4:
-                    return new IntColumnBuilder(channel, type);
+                    return new IntColumnBuilder(channel, type, disableEncoding);
                 case 8:
                     if (type.getJavaType() == double.class) {
-                        return new DoubleColumnBuilder(channel, type);
+                        return new DoubleColumnBuilder(channel, type, disableEncoding);
                     }
                     else {
-                        return new LongColumnBuilder(channel, type);
+                        return new LongColumnBuilder(channel, type, disableEncoding);
                     }
                 case 16:
-                    return new SliceColumnBuilder(channel, type);
+                    return new SliceColumnBuilder(channel, type, disableEncoding);
                 default:
                     throw new IllegalArgumentException(String.format("Unsupported segmentCount: %s", size));
             }
         }
         else {
-            return new SliceColumnBuilder(channel, type);
+            return new SliceColumnBuilder(channel, type, disableEncoding);
         }
     }
 }

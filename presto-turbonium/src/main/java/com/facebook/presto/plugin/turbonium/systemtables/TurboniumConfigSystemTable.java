@@ -30,6 +30,7 @@ import javax.inject.Inject;
 
 import static com.facebook.presto.spi.SystemTable.Distribution.ALL_NODES;
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
+import static com.facebook.presto.spi.type.BooleanType.BOOLEAN;
 import static com.facebook.presto.spi.type.VarcharType.VARCHAR;
 import static java.util.Objects.requireNonNull;
 
@@ -51,7 +52,8 @@ public class TurboniumConfigSystemTable
                         new ColumnMetadata("node_id", VARCHAR),
                         new ColumnMetadata("max_data_per_node", BIGINT),
                         new ColumnMetadata("max_table_size_per_node", BIGINT),
-                        new ColumnMetadata("splits_per_node", BIGINT)
+                        new ColumnMetadata("splits_per_node", BIGINT),
+                        new ColumnMetadata("disable_encoding", BOOLEAN)
                 )
         );
     }
@@ -75,7 +77,8 @@ public class TurboniumConfigSystemTable
         systemTable.addRow(nodeId,
                 configManager.getConfig().getMaxDataPerNode().toBytes(),
                 configManager.getConfig().getMaxTableSizePerNode().toBytes(),
-                configManager.getConfig().getSplitsPerNode());
+                configManager.getConfig().getSplitsPerNode(),
+                configManager.getConfig().getDisableEncoding());
         return systemTable.build().cursor();
     }
 }

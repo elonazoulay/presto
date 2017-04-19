@@ -14,6 +14,7 @@
 package com.facebook.presto.plugin.turbonium;
 
 import com.facebook.presto.plugin.turbonium.config.TurboniumConfigManager;
+import com.facebook.presto.plugin.turbonium.config.UpdateDisableEncodingProcedure;
 import com.facebook.presto.plugin.turbonium.config.UpdateMaxDataPerNodeProcedure;
 import com.facebook.presto.plugin.turbonium.config.UpdateMaxTableSizePerNodeProcedure;
 import com.facebook.presto.plugin.turbonium.config.UpdateSplitsPerNodeProcedure;
@@ -82,6 +83,7 @@ public class TurboniumModule
         binder.bind(UpdateMaxDataPerNodeProcedure.class).in(Scopes.SINGLETON);
         binder.bind(UpdateMaxTableSizePerNodeProcedure.class).in(Scopes.SINGLETON);
         binder.bind(UpdateSplitsPerNodeProcedure.class).in(Scopes.SINGLETON);
+        binder.bind(UpdateDisableEncodingProcedure.class).in(Scopes.SINGLETON);
     }
 
     @ProvidesIntoSet
@@ -98,6 +100,12 @@ public class TurboniumModule
 
     @ProvidesIntoSet
     public static Procedure getUpdateSplitsPerNodeProcedure(UpdateSplitsPerNodeProcedure procedure)
+    {
+        return procedure.getProcedure();
+    }
+
+    @ProvidesIntoSet
+    public static Procedure getUpdateDisableEncodingProcedure(UpdateDisableEncodingProcedure procedure)
     {
         return procedure.getProcedure();
     }

@@ -267,9 +267,9 @@ public class ByteSegments
         }
     }
 
-    public static Builder builder(int channel, Type type)
+    public static Builder builder(int channel, Type type, boolean disableEncoding)
     {
-        return new Builder(channel, type);
+        return new Builder(channel, type, disableEncoding);
     }
 
     public static class Builder
@@ -280,9 +280,9 @@ public class ByteSegments
         private final BitSet isNull = new BitSet(DEFAULT_SEGMENT_SIZE);
         private final ByteStatsBuilder statsBuilder = new ByteStatsBuilder();
 
-        private Builder(int channel, Type type)
+        private Builder(int channel, Type type, boolean disableEncoding)
         {
-            super(channel, type);
+            super(channel, type, disableEncoding);
         }
 
         @Override
@@ -314,7 +314,7 @@ public class ByteSegments
         @Override
         public Segment build()
         {
-            return new ByteEncoder(statsBuilder.build(), getType(), isNull, values).encode();
+            return new ByteEncoder(getDisableEncoding(), statsBuilder.build(), getType(), isNull, values).encode();
         }
     }
 }

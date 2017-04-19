@@ -51,7 +51,8 @@ public class TestTurboniumPagesStore
     public static final TurboniumConfigSpec turboniumConfig = new TurboniumConfigSpec(
             128L * 1024 * 1024,
             32 * 1024 * 1024,
-            Runtime.getRuntime().availableProcessors()
+            Runtime.getRuntime().availableProcessors(),
+            false
     );
 
     private TurboniumPagesStore pagesStore;

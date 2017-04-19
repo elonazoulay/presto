@@ -42,24 +42,37 @@ public class Util
 
     public static <T> Domain createDomain(Type type, Stats<T> stats)
     {
+        // If encoding is disabled and segment contains only nulls or is empty
+        if (!stats.getMin().isPresent()) {
+            if (stats.size() == 0) {
+                return Domain.none(type);
+            }
+            else if (stats.getNonNullCount() == 0) {
+                return Domain.onlyNull(type);
+            }
+            else {
+                return Domain.all(type);
+            }
+        }
         T min = stats.getMin().get();
+        T max = stats.getMax().get();
         if (min.getClass().equals(Integer.class)) {
             return Domain.create(
                     ValueSet.ofRanges(
                             Range.range(
                                     type,
-                                    Primitives.wrap(type.getJavaType()).cast(((Number) stats.getMin().get()).longValue()),
+                                    Primitives.wrap(type.getJavaType()).cast(((Number) min).longValue()),
                                     true,
-                                    Primitives.wrap(type.getJavaType()).cast(((Number) stats.getMax().get()).longValue()),
+                                    Primitives.wrap(type.getJavaType()).cast(((Number) max).longValue()),
                                     true)), true);
         }
         return Domain.create(
                 ValueSet.ofRanges(
                         Range.range(
                                 type,
-                                stats.getMin().get(),
+                                min,
                                 true,
-                                stats.getMax().get(),
+                                max,
                                 true)), true);
     }
 }

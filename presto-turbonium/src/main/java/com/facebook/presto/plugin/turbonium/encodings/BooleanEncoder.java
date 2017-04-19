@@ -28,9 +28,9 @@ public class BooleanEncoder
 {
     private final boolean[] values;
     private final BitSet isNull;
-    public BooleanEncoder(Stats<Boolean> stats, Type type, BitSet isNull, boolean[] values)
+    public BooleanEncoder(boolean disableEncoding, Stats<Boolean> stats, Type type, BitSet isNull, boolean[] values)
     {
-        super(type, stats);
+        super(type, stats, disableEncoding);
         this.values = values;
         this.isNull = isNull;
     }

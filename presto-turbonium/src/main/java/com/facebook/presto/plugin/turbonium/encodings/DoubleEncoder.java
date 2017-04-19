@@ -30,9 +30,9 @@ public class DoubleEncoder
 {
     private final double[] values;
     private final BitSet isNull;
-    public DoubleEncoder(Stats<Double> stats, Type type, BitSet isNull, double[] values)
+    public DoubleEncoder(boolean disableEncoding, Stats<Double> stats, Type type, BitSet isNull, double[] values)
     {
-        super(type, stats);
+        super(type, stats, disableEncoding);
         this.values = values;
         this.isNull = isNull;
     }

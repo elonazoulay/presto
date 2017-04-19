@@ -33,9 +33,9 @@ public class IntEncoder
 {
     private final int[] values;
     private final BitSet isNull;
-    public IntEncoder(Stats<Integer> stats, Type type, BitSet isNull, int[] values)
+    public IntEncoder(boolean disableEncodings, Stats<Integer> stats, Type type, BitSet isNull, int[] values)
     {
-        super(type, stats);
+        super(type, stats, disableEncodings);
         this.values = values;
         this.isNull = isNull;
     }

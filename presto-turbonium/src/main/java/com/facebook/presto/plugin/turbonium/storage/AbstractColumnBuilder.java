@@ -25,15 +25,17 @@ public abstract class AbstractColumnBuilder
 {
     private final int channel;
     private final Type type;
+    private final boolean disableEncoding;
     private final List<Segment> segmentBuilders;
     private SegmentBuilder currentBuilder;
     private long rowCount;
     private long sizeBytes;
 
-    public AbstractColumnBuilder(int channel, Type type)
+    public AbstractColumnBuilder(int channel, Type type, boolean disableEncoding)
     {
         this.channel = channel;
         this.type = type;
+        this.disableEncoding = disableEncoding;
         segmentBuilders = new ArrayList<>();
         currentBuilder = createSegmentBuilder();
     }
@@ -48,6 +50,11 @@ public abstract class AbstractColumnBuilder
     public Type getType()
     {
         return type;
+    }
+
+    protected boolean getDisableEncoding()
+    {
+        return disableEncoding;
     }
 
     @Override

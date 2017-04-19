@@ -57,7 +57,8 @@ public class TurboniumConfigManager
         TurboniumConfig config = this.config.get();
         return new TurboniumConfigSpec(config.getMaxDataPerNode().toBytes(),
                 config.getMaxTableSizePerNode().toBytes(),
-                config.getSplitsPerNode());
+                config.getSplitsPerNode(),
+                config.getDisableEncoding());
     }
 
     public void setFromConfig(TurboniumConfigSpec config)
@@ -65,7 +66,8 @@ public class TurboniumConfigManager
         TurboniumConfig newConfig = new TurboniumConfig()
                 .setMaxDataPerNode(new DataSize(config.getMaxDataPerNode(), BYTE))
                 .setMaxTableSizePerNode(new DataSize(config.getMaxTableSizePerNode(), BYTE))
-                .setSplitsPerNode(toIntExact(config.getSplitsPerNode()));
+                .setSplitsPerNode(toIntExact(config.getSplitsPerNode()))
+                .setDisableEncoding(config.getDisableEncoding());
 
         this.config.set(newConfig);
     }
@@ -80,7 +82,8 @@ public class TurboniumConfigManager
                     dao.insertMemoryConfig(
                             currentConfig.getMaxDataPerNode().toBytes(),
                             currentConfig.getMaxTableSizePerNode().toBytes(),
-                            currentConfig.getSplitsPerNode());
+                            currentConfig.getSplitsPerNode(),
+                            currentConfig.getDisableEncoding());
                 }
             }
             else {
@@ -135,12 +138,27 @@ public class TurboniumConfigManager
         }
     }
 
+    public synchronized void setDisableEncoding(boolean disableEncoding)
+    {
+        config.set(copyMemoryConfig().setDisableEncoding(disableEncoding));
+        try {
+            if (canWrite) {
+                dao.updateDisableEncoding(disableEncoding);
+            }
+        }
+        catch (Exception e) {
+            log.error("Failed to update disable_encoding: %s", e);
+            Throwables.propagate(e);
+        }
+    }
+
     private TurboniumConfig copyMemoryConfig()
     {
         TurboniumConfig newConfig = new TurboniumConfig();
         TurboniumConfig currentConfig = config.get();
         return newConfig.setMaxDataPerNode(currentConfig.getMaxDataPerNode())
                 .setMaxTableSizePerNode(currentConfig.getMaxTableSizePerNode())
-                .setSplitsPerNode(currentConfig.getSplitsPerNode());
+                .setSplitsPerNode(currentConfig.getSplitsPerNode())
+                .setDisableEncoding(currentConfig.getDisableEncoding());
     }
 }

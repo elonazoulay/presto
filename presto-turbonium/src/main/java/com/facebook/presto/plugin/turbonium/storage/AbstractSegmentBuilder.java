@@ -23,15 +23,22 @@ abstract class AbstractSegmentBuilder
     private final int channel;
     private final Type type;
     private final int capacity;
+    private final boolean disableEncoding;
 
-    AbstractSegmentBuilder(int channel, Type type)
+    AbstractSegmentBuilder(int channel, Type type, boolean disableEncoding)
     {
         this.channel = channel;
         this.type = type;
         this.capacity = DEFAULT_SEGMENT_SIZE;
+        this.disableEncoding = disableEncoding;
     }
 
     public abstract void append(Block block, int position);
+
+    protected boolean getDisableEncoding()
+    {
+        return disableEncoding;
+    }
 
     @Override
     public boolean isFull()

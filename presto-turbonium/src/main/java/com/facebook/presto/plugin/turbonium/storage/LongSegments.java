@@ -267,9 +267,9 @@ public class LongSegments
         }
     }
 
-    public static Builder builder(int channel, Type type)
+    public static Builder builder(int channel, Type type, boolean disableEncoding)
     {
-        return new Builder(channel, type);
+        return new Builder(channel, type, disableEncoding);
     }
 
     public static class Builder
@@ -280,9 +280,9 @@ public class LongSegments
         private final BitSet isNull = new BitSet(DEFAULT_SEGMENT_SIZE);
         private final LongStatsBuilder statsBuilder = new LongStatsBuilder();
 
-        private Builder(int channel, Type type)
+        private Builder(int channel, Type type, boolean disableEncoding)
         {
-            super(channel, type);
+            super(channel, type, disableEncoding);
         }
 
         @Override
@@ -314,7 +314,7 @@ public class LongSegments
         @Override
         public Segment build()
         {
-            return new LongEncoder(statsBuilder.build(), getType(), isNull, values).encode();
+            return new LongEncoder(getDisableEncoding(), statsBuilder.build(), getType(), isNull, values).encode();
         }
     }
 }

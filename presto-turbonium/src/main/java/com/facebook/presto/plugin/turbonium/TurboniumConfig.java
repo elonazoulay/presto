@@ -23,6 +23,7 @@ public class TurboniumConfig
     private int splitsPerNode = Runtime.getRuntime().availableProcessors();
     private DataSize maxDataPerNode = new DataSize(128, DataSize.Unit.MEGABYTE);
     private DataSize maxTableSizePerNode = new DataSize(64, DataSize.Unit.MEGABYTE);
+    private boolean disableEncoding = false;
 
     @NotNull
     public int getSplitsPerNode()
@@ -60,6 +61,18 @@ public class TurboniumConfig
     public TurboniumConfig setMaxTableSizePerNode(DataSize maxTableSizePerNode)
     {
         this.maxTableSizePerNode = maxTableSizePerNode;
+        return this;
+    }
+
+    public boolean getDisableEncoding()
+    {
+        return disableEncoding;
+    }
+
+    @Config("disable-encoding")
+    public TurboniumConfig setDisableEncoding(boolean disableEncoding)
+    {
+        this.disableEncoding = disableEncoding;
         return this;
     }
 }

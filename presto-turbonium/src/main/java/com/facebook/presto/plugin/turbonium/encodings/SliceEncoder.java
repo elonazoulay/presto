@@ -31,9 +31,9 @@ public class SliceEncoder
     private final Slice[] values;
     private final BitSet isNull;
 
-    public SliceEncoder(Stats<Slice> stats, Type type, BitSet isNull, Slice[] values)
+    public SliceEncoder(boolean disableEncoding, Stats<Slice> stats, Type type, BitSet isNull, Slice[] values)
     {
-        super(type, stats);
+        super(type, stats, disableEncoding);
         this.values = values;
         this.isNull = isNull;
     }

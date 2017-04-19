@@ -199,9 +199,9 @@ public class SliceSegments
         }
     }
 
-    public static Builder builder(int channel, Type type)
+    public static Builder builder(int channel, Type type, boolean disableEncoding)
     {
-        return new Builder(channel, type);
+        return new Builder(channel, type, disableEncoding);
     }
 
     public static class Builder
@@ -211,9 +211,9 @@ public class SliceSegments
         private int internalPosition;
         private final BitSet isNull = new BitSet(DEFAULT_SEGMENT_SIZE);
         private final SliceStatsBuilder statsBuilder = new SliceStatsBuilder();
-        Builder(int channel, Type type)
+        Builder(int channel, Type type, boolean disableEncoding)
         {
-            super(channel, type);
+            super(channel, type, disableEncoding);
         }
 
         private void appendValue(Block block, int position)
@@ -245,7 +245,7 @@ public class SliceSegments
         @Override
         public Segment build()
         {
-            return new SliceEncoder(statsBuilder.build(), getType(), isNull, values).encode();
+            return new SliceEncoder(getDisableEncoding(), statsBuilder.build(), getType(), isNull, values).encode();
         }
     }
 }

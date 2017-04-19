@@ -129,9 +129,9 @@ public class Table
         return skipSegment;
     }
 
-    public static Builder builder(List<Type> types)
+    public static Builder builder(List<Type> types, boolean disableEncoding)
     {
-        return new Builder(types);
+        return new Builder(types, disableEncoding);
     }
 
     @ThreadSafe
@@ -140,12 +140,12 @@ public class Table
         private final List<Type> types;
         private final List<ColumnBuilder> columnBuilders;
 
-        private Builder(List<Type> types)
+        private Builder(List<Type> types, boolean disableEncoding)
         {
             this.types = ImmutableList.copyOf(types);
             ImmutableList.Builder<ColumnBuilder> builder = ImmutableList.builder();
             for (int channel = 0; channel < types.size(); channel++) {
-                builder.add(ColumnBuilder.create(channel, types.get(channel)));
+                builder.add(ColumnBuilder.create(channel, types.get(channel), disableEncoding));
             }
             this.columnBuilders = builder.build();
         }

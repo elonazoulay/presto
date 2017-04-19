@@ -18,14 +18,14 @@ import com.facebook.presto.spi.type.Type;
 public class DoubleColumnBuilder
         extends AbstractColumnBuilder
 {
-    public DoubleColumnBuilder(int channel, Type type)
+    public DoubleColumnBuilder(int channel, Type type, boolean disableEncoding)
     {
-        super(channel, type);
+        super(channel, type, disableEncoding);
     }
 
     @Override
     protected SegmentBuilder createSegmentBuilder()
     {
-        return DoubleSegments.builder(getChannel(), getType());
+        return DoubleSegments.builder(getChannel(), getType(), getDisableEncoding());
     }
 }

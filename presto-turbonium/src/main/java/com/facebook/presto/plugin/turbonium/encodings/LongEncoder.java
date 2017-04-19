@@ -33,9 +33,9 @@ public class LongEncoder
 {
     private final long[] values;
     private final BitSet isNull;
-    public LongEncoder(Stats<Long> stats, Type type, BitSet isNull, long[] values)
+    public LongEncoder(boolean disableEncoding, Stats<Long> stats, Type type, BitSet isNull, long[] values)
     {
-        super(type, stats);
+        super(type, stats, disableEncoding);
         this.values = values;
         this.isNull = isNull;
     }

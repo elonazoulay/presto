@@ -33,9 +33,9 @@ public class ShortEncoder
 {
     private final short[] values;
     private final BitSet isNull;
-    public ShortEncoder(Stats<Short> stats, Type type, BitSet isNull, short[] values)
+    public ShortEncoder(boolean disableEncoding, Stats<Short> stats, Type type, BitSet isNull, short[] values)
     {
-        super(type, stats);
+        super(type, stats, disableEncoding);
         this.values = values;
         this.isNull = isNull;
     }

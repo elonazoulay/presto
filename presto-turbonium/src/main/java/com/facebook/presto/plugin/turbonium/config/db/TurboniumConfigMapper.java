@@ -33,9 +33,11 @@ public class TurboniumConfigMapper
         long maxDataPerNode = resultSet.getLong("max_data_per_node");
         long maxTableSizePerNode = resultSet.getLong("max_table_size_per_node");
         int splitsPerNode = resultSet.getInt("splits_per_node");
+        boolean disableEncoding = resultSet.getBoolean("disable_encoding");
         return new TurboniumConfig()
                 .setMaxDataPerNode(new DataSize(maxDataPerNode, BYTE))
                 .setMaxTableSizePerNode(new DataSize(maxTableSizePerNode, BYTE))
-                .setSplitsPerNode(splitsPerNode);
+                .setSplitsPerNode(splitsPerNode)
+                .setDisableEncoding(disableEncoding);
     }
 }
