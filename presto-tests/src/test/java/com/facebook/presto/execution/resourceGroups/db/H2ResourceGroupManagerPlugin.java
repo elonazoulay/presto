@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.execution.resourceGroups.db;
 
+import com.facebook.presto.resourceGroups.db.ConfigurationNotifier;
 import com.facebook.presto.resourceGroups.systemtables.QueryQueueCache;
 import com.facebook.presto.resourceGroups.systemtables.ResourceGroupInfoHolder;
 import com.facebook.presto.resourceGroups.systemtables.ResourceGroupsConnectorFactory;
@@ -28,18 +29,19 @@ public class H2ResourceGroupManagerPlugin
 {
     private final QueryQueueCache queryQueueCache = new QueryQueueCache();
     private final ResourceGroupInfoHolder resourceGroupInfoHolder = new ResourceGroupInfoHolder();
+    private final ConfigurationNotifier configurationNotifier = new ConfigurationNotifier();
 
     @Override
     public Iterable<ResourceGroupConfigurationManagerFactory> getResourceGroupConfigurationManagerFactories()
     {
         return ImmutableList.of(
-                new H2ResourceGroupConfigurationManagerFactory(getClassLoader(), queryQueueCache));
+                new H2ResourceGroupConfigurationManagerFactory(getClassLoader(), queryQueueCache, resourceGroupInfoHolder, configurationNotifier));
     }
 
     @Override
     public Iterable<ConnectorFactory> getConnectorFactories()
     {
-        return ImmutableList.of(new ResourceGroupsConnectorFactory(queryQueueCache, resourceGroupInfoHolder));
+        return ImmutableList.of(new ResourceGroupsConnectorFactory(queryQueueCache, resourceGroupInfoHolder, configurationNotifier));
     }
 
     private static ClassLoader getClassLoader()

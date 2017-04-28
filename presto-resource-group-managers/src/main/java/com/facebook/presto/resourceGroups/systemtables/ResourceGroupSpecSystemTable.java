@@ -86,19 +86,19 @@ public class ResourceGroupSpecSystemTable
             table.addRow(
                     entry.getKey().toString(),
                     entry.getValue().getSoftMemoryLimit().map(DataSize::toString).orElse(
-                            format("%.0f%%", (entry.getValue().getSoftMemoryLimitFraction().get() * 100))),
+                            format("%.0f%%", (entry.getValue().getSoftMemoryLimitFraction().orElse(0.0) * 100))),
                     entry.getValue().getHardMemoryLimit().map(DataSize::toString).orElse(
-                            format("%.0f%%", (entry.getValue().getHardMemoryLimitFraction().get() * 100))
+                            format("%.0f%%", (entry.getValue().getHardMemoryLimitFraction().orElse(0.0) * 100))
                     ),
                     entry.getValue().getMaxQueued(),
                     entry.getValue().getMaxRunning(),
-                    entry.getValue().getSchedulingPolicy().map(SchedulingPolicy::toString).orElse(""),
-                    entry.getValue().getSchedulingWeight().orElse(0),
-                    entry.getValue().getJmxExport().orElse(false),
-                    entry.getValue().getSoftCpuLimit().map(Duration::toString).orElse(""),
-                    entry.getValue().getHardCpuLimit().map(Duration::toString).orElse(""),
-                    entry.getValue().getQueuedTimeout().map(Duration::toString).orElse(""),
-                    entry.getValue().getRunningTimeout().map(Duration::toString).orElse("")
+                    entry.getValue().getSchedulingPolicy().map(SchedulingPolicy::toString).orElse(null),
+                    entry.getValue().getSchedulingWeight().orElse(null),
+                    entry.getValue().getJmxExport().orElse(null),
+                    entry.getValue().getSoftCpuLimit().map(Duration::toString).orElse(null),
+                    entry.getValue().getHardCpuLimit().map(Duration::toString).orElse(null),
+                    entry.getValue().getQueuedTimeout().map(Duration::toString).orElse(null),
+                    entry.getValue().getRunningTimeout().map(Duration::toString).orElse(null)
             );
         }
         return table.build().cursor();

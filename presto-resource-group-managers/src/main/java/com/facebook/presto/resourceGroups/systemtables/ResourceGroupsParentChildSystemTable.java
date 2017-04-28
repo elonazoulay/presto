@@ -69,10 +69,14 @@ public class ResourceGroupsParentChildSystemTable
         InMemoryRecordSet.Builder table = InMemoryRecordSet.builder(METADATA);
         for (Map.Entry<ResourceGroupIdTemplate, ResourceGroupSpec> entry : resourceGroupInfoHolder.getResourceGroupSpecs().entrySet()) {
             ResourceGroupIdTemplate parent = entry.getKey();
-            String parentId = parent.toString();
-            entry.getValue().getSubGroups().stream().map(ResourceGroupSpec::getName)
-                    .map(name -> ResourceGroupIdTemplate.forSubGroupNamed(parent, name.toString()))
-                    .forEach(child -> table.addRow(parentId, child.toString()));
+            if (entry.getValue().getSubGroups().isEmpty()) {
+                table.addRow(parent.toString(), null);
+            }
+            else {
+                entry.getValue().getSubGroups().stream().map(ResourceGroupSpec::getName)
+                        .map(name -> ResourceGroupIdTemplate.forSubGroupNamed(parent, name.toString()))
+                        .forEach(child -> table.addRow(parent.toString(), child.toString()));
+            }
         }
         return table.build().cursor();
     }

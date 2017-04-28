@@ -26,6 +26,7 @@ import static java.util.Objects.requireNonNull;
 
 public class ResourceGroupGlobalProperties
 {
+    public static final String CPU_QUOTA_PERIOD = "cpu_quota_period";
     private final Optional<Duration> cpuQuotaPeriod;
 
     public ResourceGroupGlobalProperties(Optional<Duration> cpuQuotaPeriod)

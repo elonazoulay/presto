@@ -20,6 +20,7 @@ import com.facebook.presto.spi.connector.ConnectorMetadata;
 import com.facebook.presto.spi.connector.ConnectorRecordSetProvider;
 import com.facebook.presto.spi.connector.ConnectorSplitManager;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
+import com.facebook.presto.spi.procedure.Procedure;
 import com.facebook.presto.spi.transaction.IsolationLevel;
 
 import javax.inject.Inject;
@@ -32,6 +33,7 @@ public class ResourceGroupsConnector
     implements Connector
 {
     private final Set<SystemTable> systemTables;
+    private final Set<Procedure> procedures;
     private final ResourceGroupsSplitManager splitManager;
     private final ResourceGroupsMetadata metadata;
     private final ResourceGroupsRecordSetProvider recordSetProvider;
@@ -41,9 +43,11 @@ public class ResourceGroupsConnector
             ResourceGroupsMetadata metadata,
             ResourceGroupsSplitManager splitManager,
             ResourceGroupsRecordSetProvider recordSetProvider,
-            Set<SystemTable> systemTables)
+            Set<SystemTable> systemTables,
+            Set<Procedure> procedures)
     {
         this.systemTables = requireNonNull(systemTables, "systemTables is null");
+        this.procedures = requireNonNull(procedures, "procedures is null");
         this.splitManager = requireNonNull(splitManager, "splitManager is null");
         this.metadata = metadata;
         this.recordSetProvider = recordSetProvider;
@@ -78,5 +82,11 @@ public class ResourceGroupsConnector
     public ConnectorRecordSetProvider getRecordSetProvider()
     {
         return recordSetProvider;
+    }
+
+    @Override
+    public Set<Procedure> getProcedures()
+    {
+        return procedures;
     }
 }

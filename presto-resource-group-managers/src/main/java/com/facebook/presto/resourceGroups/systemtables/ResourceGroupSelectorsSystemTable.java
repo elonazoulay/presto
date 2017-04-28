@@ -72,8 +72,8 @@ public class ResourceGroupSelectorsSystemTable
         for (SelectorSpec selector : resourceGroupInfoHolder.getSelectorSpecs()) {
             table.addRow(
                     selector.getGroup().toString(),
-                    selector.getUserRegex().map(Pattern::toString).orElse(""),
-                    selector.getSourceRegex().map(Pattern::toString).orElse(""));
+                    selector.getUserRegex().map(Pattern::toString).orElse(null),
+                    selector.getSourceRegex().map(Pattern::toString).orElse(null));
         }
         return table.build().cursor();
     }

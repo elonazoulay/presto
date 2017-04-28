@@ -19,6 +19,7 @@ import com.facebook.presto.spi.resourceGroups.ResourceGroup;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupSelector;
 import com.facebook.presto.spi.resourceGroups.SelectionContext;
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableList;
 import io.airlift.json.JsonCodec;
 import io.airlift.units.Duration;
 
@@ -57,7 +58,7 @@ public class FileResourceGroupConfigurationManager
         this.rootGroups = managerSpec.getRootGroups();
         this.cpuQuotaPeriodMillis = managerSpec.getCpuQuotaPeriod();
         validateRootGroups(managerSpec);
-        this.selectors = buildSelectors(managerSpec);
+        this.selectors = ImmutableList.copyOf(buildSelectors(managerSpec).values());
     }
 
     @Override
