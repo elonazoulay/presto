@@ -56,7 +56,7 @@ public class Util
         }
         T min = stats.getMin().get();
         T max = stats.getMax().get();
-        if (min.getClass().equals(Integer.class)) {
+        if (min.getClass().equals(Integer.class) || min.getClass().equals(Short.class) || min.getClass().equals(Byte.class)) {
             return Domain.create(
                     ValueSet.ofRanges(
                             Range.range(
