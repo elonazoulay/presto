@@ -202,6 +202,27 @@ public class InformationSchemaPageSourceProvider
         return table.build();
     }
 
+    private InternalTable buildTablePrivileges(Session session, String catalogName, Map<String, NullableValue> filters)
+    {
+        QualifiedTablePrefix prefix = extractQualifiedTablePrefix(catalogName, filters);
+        List<GrantInfo> grants = ImmutableList.copyOf(listTablePrivileges(session, metadata, accessControl, prefix));
+        InternalTable.Builder table = InternalTable.builder(informationSchemaTableColumns(TABLE_TABLE_PRIVILEGES));
+        for (GrantInfo grant : grants) {
+            for (PrivilegeInfo privilegeInfo : grant.getPrivilegeInfo()) {
+                table.add(
+                        grant.getGrantor().isPresent() ? grant.getGrantor().get().getUser() : null,
+                        grant.getIdentity().getUser(),
+                        catalogName,
+                        grant.getSchemaTableName().getSchemaName(),
+                        grant.getSchemaTableName().getTableName(),
+                        privilegeInfo.getPrivilege().name(),
+                        privilegeInfo.isGrantOption(),
+                        grant.getWithHierarchy().orElse(null));
+            }
+        }
+        return table.build();
+    }
+
     private InternalTable buildViews(Session session, String catalogName, Map<String, NullableValue> filters)
     {
         InternalTable.Builder table = InternalTable.builder(informationSchemaTableColumns(TABLE_VIEWS));
