@@ -184,9 +184,13 @@ public class TurboniumPagesStore
     {
         try {
             lock.readLock().lock();
-            long sizeBytes = tables.get(tableId).getSizeBytes();
-            long rowCount = tables.get(tableId).getRowCount();
-            long pagesCount = tables.get(tableId).getSegmentCount();
+            Table table = tables.get(tableId);
+            if (table == null) {
+                return new SizeInfo(0L, 0L, 0L, 0L);
+            }
+            long sizeBytes = table.getSizeBytes();
+            long rowCount = table.getRowCount();
+            long pagesCount = table.getSegmentCount();
             return new SizeInfo(rowCount, sizeBytes, pagesCount, tableSizes.get(tableId));
         }
         finally {
@@ -198,7 +202,11 @@ public class TurboniumPagesStore
     {
         try {
             lock.readLock().lock();
-            List<Long> columnSize = tables.get(tableId).getColumnSizes();
+            Table table = tables.get(tableId);
+            if (table == null) {
+                return ImmutableList.of();
+            }
+            List<Long> columnSize = table.getColumnSizes();
             long[] sourceSizes = columnSizes.get(tableId);
             checkState(columnSize.size() == sourceSizes.length, "Column counts mismatch between source and in memory");
             ImmutableList.Builder<ColumnSizeInfo> builder = ImmutableList.builder();
