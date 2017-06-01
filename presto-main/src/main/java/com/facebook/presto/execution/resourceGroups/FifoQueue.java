@@ -74,4 +74,9 @@ final class FifoQueue<E>
     {
         return delegate.isEmpty();
     }
+
+    public Iterator<E> iterator()
+    {
+        return delegate.iterator();
+    }
 }
