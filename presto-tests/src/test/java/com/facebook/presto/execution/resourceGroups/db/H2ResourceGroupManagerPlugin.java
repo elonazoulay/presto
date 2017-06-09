@@ -13,7 +13,10 @@
  */
 package com.facebook.presto.execution.resourceGroups.db;
 
+import com.facebook.presto.resourceGroups.connector.ResourceGroupsConnectorFactory;
+import com.facebook.presto.resourceGroups.systemtables.ResourceGroupConfigurationInfo;
 import com.facebook.presto.spi.Plugin;
+import com.facebook.presto.spi.connector.ConnectorFactory;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupConfigurationManagerFactory;
 import com.google.common.collect.ImmutableList;
 
@@ -22,15 +25,23 @@ import static com.google.common.base.MoreObjects.firstNonNull;
 public class H2ResourceGroupManagerPlugin
         implements Plugin
 {
+    private final ResourceGroupConfigurationInfo configurationInfo = new ResourceGroupConfigurationInfo();
+
     @Override
     public Iterable<ResourceGroupConfigurationManagerFactory> getResourceGroupConfigurationManagerFactories()
     {
         return ImmutableList.of(
-                new H2ResourceGroupConfigurationManagerFactory(getClassLoader()));
+                new H2ResourceGroupConfigurationManagerFactory(getClassLoader(), configurationInfo));
     }
 
     private static ClassLoader getClassLoader()
     {
         return firstNonNull(Thread.currentThread().getContextClassLoader(), H2ResourceGroupManagerPlugin.class.getClassLoader());
+    }
+
+    @Override
+    public Iterable<ConnectorFactory> getConnectorFactories()
+    {
+        return ImmutableList.of(new ResourceGroupsConnectorFactory(configurationInfo));
     }
 }

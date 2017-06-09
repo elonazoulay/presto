@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.resourceGroups;
 
+import com.facebook.presto.resourceGroups.systemtables.ResourceGroupConfigurationInfo;
 import com.facebook.presto.spi.memory.ClusterMemoryPoolManager;
 import com.facebook.presto.spi.memory.MemoryPoolId;
 import com.facebook.presto.spi.resourceGroups.ResourceGroup;
@@ -39,6 +40,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 import static io.airlift.units.DataSize.Unit.BYTE;
 import static java.lang.String.format;
+import static java.util.Objects.requireNonNull;
 
 public abstract class AbstractResourceConfigurationManager
         implements ResourceGroupConfigurationManager
@@ -48,8 +50,21 @@ public abstract class AbstractResourceConfigurationManager
     @GuardedBy("generalPoolMemoryFraction")
     private long generalPoolBytes;
 
+    private final ResourceGroupConfigurationInfo configurationInfo;
+
     protected abstract Optional<Duration> getCpuQuotaPeriod();
     protected abstract List<ResourceGroupSpec> getRootGroups();
+
+    // Implementations override this method to load internal data structures
+    protected abstract ManagerSpec loadInternal();
+
+    // Calls loadInternal and then sets the configuration info
+    protected final ManagerSpec load()
+    {
+        ManagerSpec managerSpec = loadInternal();
+        setConfigurationInfo(managerSpec);
+        return managerSpec;
+    }
 
     protected void validateRootGroups(ManagerSpec managerSpec)
     {
@@ -108,7 +123,14 @@ public abstract class AbstractResourceConfigurationManager
         }
     }
 
-    protected AbstractResourceConfigurationManager(ClusterMemoryPoolManager memoryPoolManager)
+    private void setConfigurationInfo(ManagerSpec managerSpec)
+    {
+        configurationInfo.setRootGroupSpecs(managerSpec.getRootGroups());
+        configurationInfo.setSelectorSpecs(managerSpec.getSelectors());
+        configurationInfo.setCpuQuotaPeriod(managerSpec.getCpuQuotaPeriod());
+    }
+
+    protected AbstractResourceConfigurationManager(ClusterMemoryPoolManager memoryPoolManager, ResourceGroupConfigurationInfo configurationInfo)
     {
         memoryPoolManager.addChangeListener(new MemoryPoolId("general"), poolInfo -> {
             Map<ResourceGroup, DataSize> memoryLimits = new HashMap<>();
@@ -124,6 +146,7 @@ public abstract class AbstractResourceConfigurationManager
                 entry.getKey().setSoftMemoryLimit(entry.getValue());
             }
         });
+        this.configurationInfo = requireNonNull(configurationInfo, "configurationInfo is null");
     }
 
     protected Map.Entry<ResourceGroupIdTemplate, ResourceGroupSpec> getMatchingSpec(ResourceGroup group, SelectionContext context)
@@ -163,7 +186,13 @@ public abstract class AbstractResourceConfigurationManager
         return new AbstractMap.SimpleImmutableEntry<>(ResourceGroupIdTemplate.fromSegments(templateId), match);
     }
 
-    protected void configureGroup(ResourceGroup group, ResourceGroupSpec match)
+    protected void configureGroup(ResourceGroup group, ResourceGroupSpec match, ResourceGroupIdTemplate templateId)
+    {
+        reconfigureGroup(group, match);
+        configurationInfo.addGroup(group.getId(), templateId);
+    }
+
+    protected void reconfigureGroup(ResourceGroup group, ResourceGroupSpec match)
     {
         if (match.getSoftMemoryLimit().isPresent()) {
             group.setSoftMemoryLimit(match.getSoftMemoryLimit().get());
