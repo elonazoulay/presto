@@ -38,13 +38,13 @@ import static com.facebook.presto.execution.QueryState.TERMINAL_QUERY_STATES;
 import static com.facebook.presto.testing.TestingSession.testSessionBuilder;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
-public class H2TestUtil
+class H2TestUtil
 {
-    static final String NAME = "h2";
+    private static final String NAME = "h2";
 
     private H2TestUtil() {}
 
-    static Session newSession()
+    public static Session newSession()
     {
         return testSessionBuilder()
                 .setCatalog("tpch")
@@ -53,7 +53,7 @@ public class H2TestUtil
                 .build();
     }
 
-    static Session newDashboardSession()
+    public static Session newDashboardSession()
     {
         return testSessionBuilder()
                 .setCatalog("tpch")
@@ -62,7 +62,7 @@ public class H2TestUtil
                 .build();
     }
 
-    static Session newRejectionSession()
+    public static Session newRejectionSession()
     {
         return testSessionBuilder()
                 .setCatalog("tpch")
@@ -71,19 +71,19 @@ public class H2TestUtil
                 .build();
     }
 
-    static void waitForCompleteQueryCount(DistributedQueryRunner queryRunner, int expectedCount)
+    public static void waitForCompleteQueryCount(DistributedQueryRunner queryRunner, int expectedCount)
             throws InterruptedException
     {
         waitForQueryCount(queryRunner, TERMINAL_QUERY_STATES, expectedCount);
     }
 
-    static void waitForRunningQueryCount(DistributedQueryRunner queryRunner, int expectedCount)
+    public static void waitForRunningQueryCount(DistributedQueryRunner queryRunner, int expectedCount)
             throws InterruptedException
     {
         waitForQueryCount(queryRunner, ImmutableSet.of(RUNNING), expectedCount);
     }
 
-    static void waitForQueryCount(DistributedQueryRunner queryRunner, Set<QueryState> countingStates, int expectedCount)
+    public static void waitForQueryCount(DistributedQueryRunner queryRunner, Set<QueryState> countingStates, int expectedCount)
             throws InterruptedException
     {
         QueryManager queryManager = queryRunner.getCoordinator().getQueryManager();
@@ -92,13 +92,13 @@ public class H2TestUtil
         }
     }
 
-    static String getDbConfigUrl()
+    public static String getDbConfigUrl()
     {
         Random rnd = new Random();
         return "jdbc:h2:mem:test_" + Math.abs(rnd.nextLong());
     }
 
-    static H2ResourceGroupsDao getDao(String url)
+    public static H2ResourceGroupsDao getDao(String url)
     {
         DbResourceGroupConfig dbResourceGroupConfig = new DbResourceGroupConfig()
                 .setConfigDbUrl(url);
@@ -109,7 +109,7 @@ public class H2TestUtil
         return dao;
     }
 
-    static DistributedQueryRunner createQueryRunner(String dbConfigUrl, H2ResourceGroupsDao dao)
+    public static DistributedQueryRunner createQueryRunner(String dbConfigUrl, H2ResourceGroupsDao dao)
             throws Exception
     {
         ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
@@ -132,7 +132,7 @@ public class H2TestUtil
         }
     }
 
-    static DistributedQueryRunner getSimpleQueryRunner()
+    public static DistributedQueryRunner getSimpleQueryRunner()
             throws Exception
     {
         String dbConfigUrl = getDbConfigUrl();
@@ -149,7 +149,7 @@ public class H2TestUtil
         return queryRunner;
     }
 
-    static void setup(DistributedQueryRunner queryRunner, H2ResourceGroupsDao dao)
+    private static void setup(DistributedQueryRunner queryRunner, H2ResourceGroupsDao dao)
             throws InterruptedException
     {
         dao.insertResourceGroupsGlobalProperties("cpu_quota_period", "1h");
@@ -167,7 +167,7 @@ public class H2TestUtil
         }
     }
 
-    static List<ResourceGroupSelector> getSelectors(DistributedQueryRunner queryRunner)
+    public static List<ResourceGroupSelector> getSelectors(DistributedQueryRunner queryRunner)
     {
         return queryRunner.getCoordinator().getResourceGroupManager().get().getConfigurationManager().getSelectors();
     }
