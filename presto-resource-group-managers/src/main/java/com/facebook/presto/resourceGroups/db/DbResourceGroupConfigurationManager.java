@@ -18,6 +18,7 @@ import com.facebook.presto.resourceGroups.ManagerSpec;
 import com.facebook.presto.resourceGroups.ResourceGroupIdTemplate;
 import com.facebook.presto.resourceGroups.ResourceGroupSpec;
 import com.facebook.presto.resourceGroups.SelectorSpec;
+import com.facebook.presto.resourceGroups.systemtables.ResourceGroupConfigurationInfo;
 import com.facebook.presto.spi.memory.ClusterMemoryPoolManager;
 import com.facebook.presto.spi.resourceGroups.ResourceGroup;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupId;
@@ -69,9 +70,9 @@ public class DbResourceGroupConfigurationManager
     private final AtomicBoolean started = new AtomicBoolean();
 
     @Inject
-    public DbResourceGroupConfigurationManager(ClusterMemoryPoolManager memoryPoolManager, ResourceGroupsDao dao)
+    public DbResourceGroupConfigurationManager(ClusterMemoryPoolManager memoryPoolManager, ResourceGroupsDao dao, ResourceGroupConfigurationInfo configurationInfo)
     {
-        super(memoryPoolManager);
+        super(memoryPoolManager, configurationInfo);
         requireNonNull(memoryPoolManager, "memoryPoolManager is null");
         requireNonNull(dao, "daoProvider is null");
         this.dao = dao;
@@ -151,7 +152,7 @@ public class DbResourceGroupConfigurationManager
         this.cpuQuotaPeriod.set(managerSpec.getCpuQuotaPeriod());
         this.rootGroups.set(managerSpec.getRootGroups());
         this.selectors.set(buildSelectors(managerSpec));
-
+        setConfigurationInfo(managerSpec);
         configureChangedGroups(changedSpecs);
         disableDeletedGroups(deletedSpecs);
     }
