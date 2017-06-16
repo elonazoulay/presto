@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.resourceGroups;
 
+import com.facebook.presto.resourceGroups.systemtables.ResourceGroupConfigurationInfo;
 import com.facebook.presto.spi.resourceGroups.ResourceGroup;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupConfigurationManager;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupId;
@@ -138,7 +139,8 @@ public class TestFileResourceGroupConfigurationManager
         return new FileResourceGroupConfigurationManager(
                 (poolId, listener) -> { },
                 config,
-                jsonCodec(ManagerSpec.class));
+                jsonCodec(ManagerSpec.class),
+                new ResourceGroupConfigurationInfo());
     }
 
     private String getResourceFilePath(String fileName)

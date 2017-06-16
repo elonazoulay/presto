@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.resourceGroups;
 
+import com.facebook.presto.resourceGroups.systemtables.ResourceGroupConfigurationInfo;
 import com.facebook.presto.spi.memory.ClusterMemoryPoolManager;
 import com.facebook.presto.spi.resourceGroups.ResourceGroup;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupSelector;
@@ -40,9 +41,9 @@ public class FileResourceGroupConfigurationManager
     private final Optional<Duration> cpuQuotaPeriod;
 
     @Inject
-    public FileResourceGroupConfigurationManager(ClusterMemoryPoolManager memoryPoolManager, FileResourceGroupConfig config, JsonCodec<ManagerSpec> codec)
+    public FileResourceGroupConfigurationManager(ClusterMemoryPoolManager memoryPoolManager, FileResourceGroupConfig config, JsonCodec<ManagerSpec> codec, ResourceGroupConfigurationInfo configurationInfo)
     {
-        super(memoryPoolManager);
+        super(memoryPoolManager, configurationInfo);
         requireNonNull(config, "config is null");
         requireNonNull(codec, "codec is null");
 
@@ -57,6 +58,7 @@ public class FileResourceGroupConfigurationManager
         this.cpuQuotaPeriod = managerSpec.getCpuQuotaPeriod();
         validateRootGroups(managerSpec);
         this.selectors = buildSelectors(managerSpec);
+        setConfigurationInfo(managerSpec);
     }
 
     @Override
