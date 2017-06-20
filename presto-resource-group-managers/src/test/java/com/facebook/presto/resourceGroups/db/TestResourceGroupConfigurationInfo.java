@@ -24,6 +24,7 @@ import com.facebook.presto.spi.resourceGroups.ResourceGroupId;
 import com.facebook.presto.spi.resourceGroups.SelectionContext;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import io.airlift.units.Duration;
 import org.testng.annotations.Test;
 
@@ -39,21 +40,47 @@ public class TestResourceGroupConfigurationInfo
 {
     @Test
     public void testResourceGroupConfigurationInfo()
+            throws Exception
     {
+        H2DaoProvider daoProvider = setup("test_configuration");
+        H2ResourceGroupsDao dao = daoProvider.get();
         ResourceGroupConfigurationInfo configurationInfo = new ResourceGroupConfigurationInfo();
         // Create resource group configuration manager just to populate configurationInfo
-        getManager(configurationInfo);
-        assertEquals(configurationInfo.getCpuQuotaPeriod(), Optional.of(Duration.valueOf("1h")));
-        assertEquals(
-                getOnlyElement(configurationInfo.getSelectorSpecs()),
-                new SelectorSpec(
-                        Optional.of(Pattern.compile("user")),
-                        Optional.of(Pattern.compile("test_source")),
-                        new ResourceGroupIdTemplate("global.sub")));
-        Map<ResourceGroupIdTemplate, ResourceGroupSpec> specs = configurationInfo.getResourceGroupSpecs();
-        assertEquals(specs.size(), 2);
-        ResourceGroupSpec actual = specs.get(new ResourceGroupIdTemplate("global"));
-        assertEquals(actual, getExpectedResourceGroupSpec());
+        DbResourceGroupConfigurationManager manager = getManager(configurationInfo, dao);
+        manager.start();
+        try {
+            assertEquals(configurationInfo.getCpuQuotaPeriod(), Optional.of(Duration.valueOf("1h")));
+            SelectorSpec selectorSpec = new SelectorSpec(
+                    Optional.of(Pattern.compile("user")),
+                    Optional.of(Pattern.compile("test_source")),
+                    new ResourceGroupIdTemplate("global.sub"));
+            assertEquals(getOnlyElement(configurationInfo.getSelectorSpecs()), selectorSpec);
+            Map<ResourceGroupIdTemplate, ResourceGroupSpec> specs = configurationInfo.getResourceGroupSpecs();
+            assertEquals(specs.size(), 2);
+            ResourceGroupSpec actual = specs.get(new ResourceGroupIdTemplate("global"));
+            assertEquals(actual, getExpectedResourceGroupSpec());
+            // Update and insert resource groups
+            dao.updateResourceGroup(2, "sub", "2MB", 40, 30, null, 6, null, null, null, "1h", "1h", 1L);
+            dao.insertResourceGroup(3, "sub2", "2MB", 40, 30, null, 6, null, null, null, "1h", "1h", 1L);
+            // Add a new selector
+            dao.insertSelector(3, "user", "test_source");
+            // Wait for the db to be polled
+            Thread.sleep(2000);
+            specs = configurationInfo.getResourceGroupSpecs();
+            assertEquals(specs.size(), 3);
+            actual = specs.get(new ResourceGroupIdTemplate("global"));
+            assertEquals(actual, getUpdatedResourceGroupSpec());
+            SelectorSpec selectorSpec2 = new SelectorSpec(
+                    Optional.of(Pattern.compile("user")),
+                    Optional.of(Pattern.compile("test_source")),
+                    new ResourceGroupIdTemplate("global.sub2"));
+            assertEquals(
+                    ImmutableSet.copyOf(configurationInfo.getSelectorSpecs()),
+                    ImmutableSet.of(selectorSpec, selectorSpec2));
+        }
+        finally {
+            manager.destroy();
+        }
     }
 
     public static ResourceGroupSpec getExpectedResourceGroupSpec()
@@ -89,11 +116,59 @@ public class TestResourceGroupConfigurationInfo
         );
     }
 
+    public static ResourceGroupSpec getUpdatedResourceGroupSpec()
+    {
+        return new ResourceGroupSpec(
+                new ResourceGroupNameTemplate("global"),
+                "1MB",
+                1000,
+                100,
+                Optional.of("weighted"),
+                Optional.empty(),
+                Optional.of(ImmutableList.of(
+                        new ResourceGroupSpec(
+                                new ResourceGroupNameTemplate("sub"),
+                                "2MB",
+                                40,
+                                30,
+                                Optional.empty(),
+                                Optional.of(6),
+                                Optional.empty(),
+                                Optional.empty(),
+                                Optional.empty(),
+                                Optional.empty(),
+                                Optional.of(Duration.valueOf("1h")),
+                                Optional.of(Duration.valueOf("1h"))
+                        ),
+                        new ResourceGroupSpec(
+                                new ResourceGroupNameTemplate("sub2"),
+                                "2MB",
+                                40,
+                                30,
+                                Optional.empty(),
+                                Optional.of(6),
+                                Optional.empty(),
+                                Optional.empty(),
+                                Optional.empty(),
+                                Optional.empty(),
+                                Optional.of(Duration.valueOf("1h")),
+                                Optional.of(Duration.valueOf("1h"))
+                        )
+                )),
+                Optional.of(true),
+                Optional.of(Duration.valueOf("1h")),
+                Optional.of(Duration.valueOf("1d")),
+                Optional.of(Duration.valueOf("1h")),
+                Optional.of(Duration.valueOf("1h"))
+        );
+    }
     @Test
     public void testConfiguredGroups()
     {
+        H2DaoProvider daoProvider = setup("test_configuration");
+        H2ResourceGroupsDao dao = daoProvider.get();
         ResourceGroupConfigurationInfo configurationInfo = new ResourceGroupConfigurationInfo();
-        DbResourceGroupConfigurationManager manager = getManager(configurationInfo);
+        DbResourceGroupConfigurationManager manager = getManager(configurationInfo, dao);
         SelectionContext selectionContext = new SelectionContext(true, "user", Optional.empty(), 1);
         ResourceGroup global = new TestingResourceGroup(new ResourceGroupId("global"));
         manager.configure(global, selectionContext);
@@ -107,18 +182,17 @@ public class TestResourceGroupConfigurationInfo
                         new ResourceGroupIdTemplate("global.sub")));
     }
 
-    private static DbResourceGroupConfigurationManager getManager(ResourceGroupConfigurationInfo configurationInfo)
+    private static DbResourceGroupConfigurationManager getManager(ResourceGroupConfigurationInfo configurationInfo, H2ResourceGroupsDao dao)
     {
-        H2DaoProvider daoProvider = setup("test_configuration");
-        H2ResourceGroupsDao dao = daoProvider.get();
         dao.createResourceGroupsGlobalPropertiesTable();
         dao.createResourceGroupsTable();
         dao.createSelectorsTable();
+        // Populate with some initial values
         dao.insertResourceGroupsGlobalProperties("cpu_quota_period", "1h");
         dao.insertResourceGroup(1, "global", "1MB", 1000, 100, "weighted", null, true, "1h", "1d", "1h", "1h", null);
         dao.insertResourceGroup(2, "sub", "2MB", 4, 3, null, 5, null, null, null, "1h", "1h", 1L);
         dao.insertSelector(2, "user", "test_source");
         return new DbResourceGroupConfigurationManager((poolId, listener) -> { },
-                daoProvider.get(), configurationInfo);
+                dao, configurationInfo);
     }
 }
