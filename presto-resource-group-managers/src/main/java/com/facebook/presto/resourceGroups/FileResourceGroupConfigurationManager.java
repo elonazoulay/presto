@@ -19,6 +19,7 @@ import com.facebook.presto.spi.resourceGroups.ResourceGroup;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupSelector;
 import com.facebook.presto.spi.resourceGroups.SelectionContext;
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableList;
 import io.airlift.json.JsonCodec;
 import io.airlift.units.Duration;
 
@@ -26,51 +27,61 @@ import javax.inject.Inject;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Objects.requireNonNull;
 
 public class FileResourceGroupConfigurationManager
         extends AbstractResourceConfigurationManager
 {
-    private final List<ResourceGroupSpec> rootGroups;
-    private final List<ResourceGroupSelector> selectors;
-    private final Optional<Duration> cpuQuotaPeriod;
+    private final AtomicReference<List<ResourceGroupSpec>> rootGroups = new AtomicReference(ImmutableList.of());
+    private final AtomicReference<List<ResourceGroupSelector>> selectors = new AtomicReference(ImmutableList.of());
+    private final AtomicReference<Optional<Duration>> cpuQuotaPeriod = new AtomicReference<>(Optional.empty());
+    private final JsonCodec<ManagerSpec> codec;
+    private final Path configPath;
 
     @Inject
     public FileResourceGroupConfigurationManager(ClusterMemoryPoolManager memoryPoolManager, FileResourceGroupConfig config, JsonCodec<ManagerSpec> codec, ResourceGroupConfigurationInfo configurationInfo)
     {
         super(memoryPoolManager, configurationInfo);
         requireNonNull(config, "config is null");
-        requireNonNull(codec, "codec is null");
+        this.codec = requireNonNull(codec, "codec is null");
+        this.configPath = Paths.get(config.getConfigFile());
+        load();
+    }
 
+    @Override
+    protected ManagerSpec loadInternal()
+    {
         ManagerSpec managerSpec;
         try {
-            managerSpec = codec.fromJson(Files.readAllBytes(Paths.get(config.getConfigFile())));
+            managerSpec = codec.fromJson(Files.readAllBytes(configPath));
         }
         catch (IOException e) {
             throw Throwables.propagate(e);
         }
-        this.rootGroups = managerSpec.getRootGroups();
-        this.cpuQuotaPeriod = managerSpec.getCpuQuotaPeriod();
+        this.cpuQuotaPeriod.set(managerSpec.getCpuQuotaPeriod());
         validateRootGroups(managerSpec);
-        this.selectors = buildSelectors(managerSpec);
-        setConfigurationInfo(managerSpec);
+        this.rootGroups.set(managerSpec.getRootGroups());
+        this.selectors.set(buildSelectors(managerSpec));
+        return managerSpec;
     }
 
     @Override
     protected Optional<Duration> getCpuQuotaPeriod()
     {
-        return cpuQuotaPeriod;
+        return cpuQuotaPeriod.get();
     }
 
     @Override
     protected List<ResourceGroupSpec> getRootGroups()
     {
-        return rootGroups;
+        return rootGroups.get();
     }
 
     @Override
@@ -83,6 +94,6 @@ public class FileResourceGroupConfigurationManager
     @Override
     public List<ResourceGroupSelector> getSelectors()
     {
-        return selectors;
+        return selectors.get();
     }
 }
