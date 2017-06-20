@@ -55,11 +55,15 @@ public abstract class AbstractResourceConfigurationManager
     protected abstract Optional<Duration> getCpuQuotaPeriod();
     protected abstract List<ResourceGroupSpec> getRootGroups();
 
-    protected void setConfigurationInfo(ManagerSpec managerSpec)
+    // Implementations override this method to load internal data structures
+    protected abstract ManagerSpec loadInternal();
+
+    // Calls loadInternal and then sets the configuration info
+    protected final ManagerSpec load()
     {
-        configurationInfo.setRootGroupSpecs(managerSpec.getRootGroups());
-        configurationInfo.setSelectorSpecs(managerSpec.getSelectors());
-        configurationInfo.setCpuQuotaPeriod(managerSpec.getCpuQuotaPeriod());
+        ManagerSpec managerSpec = loadInternal();
+        setConfigurationInfo(managerSpec);
+        return managerSpec;
     }
 
     protected void validateRootGroups(ManagerSpec managerSpec)
@@ -117,6 +121,13 @@ public abstract class AbstractResourceConfigurationManager
             groups = match.get().getSubGroups();
             selectorGroups = selectorGroups.subList(1, selectorGroups.size());
         }
+    }
+
+    private void setConfigurationInfo(ManagerSpec managerSpec)
+    {
+        configurationInfo.setRootGroupSpecs(managerSpec.getRootGroups());
+        configurationInfo.setSelectorSpecs(managerSpec.getSelectors());
+        configurationInfo.setCpuQuotaPeriod(managerSpec.getCpuQuotaPeriod());
     }
 
     protected AbstractResourceConfigurationManager(ClusterMemoryPoolManager memoryPoolManager, ResourceGroupConfigurationInfo configurationInfo)
