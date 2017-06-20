@@ -177,11 +177,11 @@ public abstract class AbstractResourceConfigurationManager
 
     protected void configureGroup(ResourceGroup group, ResourceGroupSpec match, ResourceGroupIdTemplate templateId)
     {
-        configureGroup(group, match);
+        reconfigureGroup(group, match);
         configurationInfo.addGroup(group.getId(), templateId);
     }
 
-    protected void configureGroup(ResourceGroup group, ResourceGroupSpec match)
+    protected void reconfigureGroup(ResourceGroup group, ResourceGroupSpec match)
     {
         if (match.getSoftMemoryLimit().isPresent()) {
             group.setSoftMemoryLimit(match.getSoftMemoryLimit().get());
