@@ -17,12 +17,16 @@ import com.facebook.presto.resourceGroups.ResourceGroupIdTemplate;
 import com.facebook.presto.resourceGroups.ResourceGroupNameTemplate;
 import com.facebook.presto.resourceGroups.ResourceGroupSpec;
 import com.facebook.presto.resourceGroups.SelectorSpec;
+import com.facebook.presto.resourceGroups.TestingResourceGroup;
 import com.facebook.presto.resourceGroups.systemtables.ResourceGroupConfigurationInfo;
+import com.facebook.presto.spi.resourceGroups.ResourceGroup;
+import com.facebook.presto.spi.resourceGroups.ResourceGroupId;
+import com.facebook.presto.spi.resourceGroups.SelectionContext;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import io.airlift.units.Duration;
 import org.testng.annotations.Test;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
@@ -36,19 +40,9 @@ public class TestResourceGroupConfigurationInfo
     @Test
     public void testResourceGroupConfigurationInfo()
     {
-        H2DaoProvider daoProvider = setup("test_configuration");
-        H2ResourceGroupsDao dao = daoProvider.get();
-        dao.createResourceGroupsGlobalPropertiesTable();
-        dao.createResourceGroupsTable();
-        dao.createSelectorsTable();
-        dao.insertResourceGroupsGlobalProperties("cpu_quota_period", "1h");
-        dao.insertResourceGroup(1, "global", "1MB", 1000, 100, "weighted", null, true, "1h", "1d", "1h", "1h", null);
-        dao.insertResourceGroup(2, "sub", "2MB", 4, 3, null, 5, null, null, null, "1h", "1h", 1L);
-        dao.insertSelector(2, "user", "test_source");
         ResourceGroupConfigurationInfo configurationInfo = new ResourceGroupConfigurationInfo();
         // Create resource group configuration manager just to populate configurationInfo
-        new DbResourceGroupConfigurationManager((poolId, listener) -> { },
-                daoProvider.get(), configurationInfo);
+        getManager(configurationInfo);
         assertEquals(configurationInfo.getCpuQuotaPeriod(), Optional.of(Duration.valueOf("1h")));
         assertEquals(
                 getOnlyElement(configurationInfo.getSelectorSpecs()),
@@ -61,6 +55,7 @@ public class TestResourceGroupConfigurationInfo
         ResourceGroupSpec actual = specs.get(new ResourceGroupIdTemplate("global"));
         assertEquals(actual, getExpectedResourceGroupSpec());
     }
+
     public static ResourceGroupSpec getExpectedResourceGroupSpec()
     {
         return new ResourceGroupSpec(
@@ -92,5 +87,38 @@ public class TestResourceGroupConfigurationInfo
                 Optional.of(Duration.valueOf("1h")),
                 Optional.of(Duration.valueOf("1h"))
         );
+    }
+
+    @Test
+    public void testConfiguredGroups()
+    {
+        ResourceGroupConfigurationInfo configurationInfo = new ResourceGroupConfigurationInfo();
+        DbResourceGroupConfigurationManager manager = getManager(configurationInfo);
+        SelectionContext selectionContext = new SelectionContext(true, "user", Optional.empty(), 1);
+        ResourceGroup global = new TestingResourceGroup(new ResourceGroupId("global"));
+        manager.configure(global, selectionContext);
+        ResourceGroup sub = new TestingResourceGroup(new ResourceGroupId(new ResourceGroupId("global"), "sub"));
+        manager.configure(sub, selectionContext);
+        assertEquals(configurationInfo.getConfiguredGroups(),
+                ImmutableMap.of(
+                        new ResourceGroupId("global"),
+                        new ResourceGroupIdTemplate("global"),
+                        new ResourceGroupId(new ResourceGroupId("global"), "sub"),
+                        new ResourceGroupIdTemplate("global.sub")));
+    }
+
+    private static DbResourceGroupConfigurationManager getManager(ResourceGroupConfigurationInfo configurationInfo)
+    {
+        H2DaoProvider daoProvider = setup("test_configuration");
+        H2ResourceGroupsDao dao = daoProvider.get();
+        dao.createResourceGroupsGlobalPropertiesTable();
+        dao.createResourceGroupsTable();
+        dao.createSelectorsTable();
+        dao.insertResourceGroupsGlobalProperties("cpu_quota_period", "1h");
+        dao.insertResourceGroup(1, "global", "1MB", 1000, 100, "weighted", null, true, "1h", "1d", "1h", "1h", null);
+        dao.insertResourceGroup(2, "sub", "2MB", 4, 3, null, 5, null, null, null, "1h", "1h", 1L);
+        dao.insertSelector(2, "user", "test_source");
+        return new DbResourceGroupConfigurationManager((poolId, listener) -> { },
+                daoProvider.get(), configurationInfo);
     }
 }
