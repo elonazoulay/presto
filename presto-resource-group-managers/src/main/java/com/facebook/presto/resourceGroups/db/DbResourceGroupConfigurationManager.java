@@ -135,8 +135,8 @@ public class DbResourceGroupConfigurationManager
         return (!globalProperties.isEmpty()) ? globalProperties.get(0).getCpuQuotaPeriod() : Optional.empty();
     }
 
-    @VisibleForTesting
-    public synchronized void load()
+    @Override
+    protected synchronized ManagerSpec loadInternal()
     {
         Map.Entry<ManagerSpec, Map<ResourceGroupIdTemplate, ResourceGroupSpec>> specsFromDb = buildSpecsFromDb();
         ManagerSpec managerSpec = specsFromDb.getKey();
@@ -154,9 +154,9 @@ public class DbResourceGroupConfigurationManager
         this.cpuQuotaPeriod.set(managerSpec.getCpuQuotaPeriod());
         this.rootGroups.set(managerSpec.getRootGroups());
         this.selectors.set(buildSelectors(managerSpec));
-        setConfigurationInfo(managerSpec);
         configureChangedGroups(changedSpecs);
         disableDeletedGroups(deletedSpecs);
+        return managerSpec;
     }
 
     // Populate temporary data structures to build resource group specs and selectors from db
