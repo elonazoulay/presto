@@ -239,7 +239,7 @@ public class DbResourceGroupConfigurationManager
         for (ResourceGroupIdTemplate resourceGroupIdTemplate : changedSpecs) {
             for (ResourceGroupId resourceGroupId : configuredGroups.getOrDefault(resourceGroupIdTemplate, ImmutableList.of())) {
                 synchronized (getRootGroup(resourceGroupId)) {
-                    configureGroup(groups.get(resourceGroupId), resourceGroupSpecs.get(resourceGroupIdTemplate));
+                    reconfigureGroup(groups.get(resourceGroupId), resourceGroupSpecs.get(resourceGroupIdTemplate));
                 }
             }
         }
