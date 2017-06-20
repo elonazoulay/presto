@@ -65,10 +65,10 @@ public class ResourceGroupSelectorSystemTable
     }
 
     @Override
-    public RecordCursor cursor(ConnectorTransactionHandle transactionHandle, ConnectorSession session, TupleDomain<Integer> constraint) {
+    public RecordCursor cursor(ConnectorTransactionHandle transactionHandle, ConnectorSession session, TupleDomain<Integer> constraint)
+    {
         InMemoryRecordSet.Builder table = InMemoryRecordSet.builder(METADATA);
-        for (SelectorSpec selector : configurationInfo.getSelectorSpecs())
-        {
+        for (SelectorSpec selector : configurationInfo.getSelectorSpecs()) {
             table.addRow(
                     selector.getGroup().toString(),
                     selector.getUserRegex().map(Pattern::toString).orElse(null),
