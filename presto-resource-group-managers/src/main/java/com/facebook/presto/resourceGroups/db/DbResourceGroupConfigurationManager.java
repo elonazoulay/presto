@@ -118,7 +118,7 @@ public class DbResourceGroupConfigurationManager
             configuredGroups.computeIfAbsent(entry.getKey(), v -> new LinkedList<>()).add(group.getId());
         }
         synchronized (getRootGroup(group.getId())) {
-            configureGroup(group, entry.getValue());
+            configureGroup(group, entry.getValue(), entry.getKey());
         }
     }
 
