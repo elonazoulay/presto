@@ -175,6 +175,12 @@ public abstract class AbstractResourceConfigurationManager
         return new AbstractMap.SimpleImmutableEntry<>(ResourceGroupIdTemplate.fromSegments(templateId), match);
     }
 
+    protected void configureGroup(ResourceGroup group, ResourceGroupSpec match, ResourceGroupIdTemplate templateId)
+    {
+        configureGroup(group, match);
+        configurationInfo.addGroup(group.getId(), templateId);
+    }
+
     protected void configureGroup(ResourceGroup group, ResourceGroupSpec match)
     {
         if (match.getSoftMemoryLimit().isPresent()) {

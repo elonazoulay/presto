@@ -16,6 +16,7 @@ package com.facebook.presto.resourceGroups.systemtables;
 import com.facebook.presto.resourceGroups.ResourceGroupIdTemplate;
 import com.facebook.presto.resourceGroups.ResourceGroupSpec;
 import com.facebook.presto.resourceGroups.SelectorSpec;
+import com.facebook.presto.spi.resourceGroups.ResourceGroupId;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import io.airlift.units.Duration;
@@ -24,16 +25,17 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Objects.requireNonNull;
 
 public class ResourceGroupConfigurationInfo
 {
-    private AtomicReference<List<SelectorSpec>> selectorSpecs = new AtomicReference(ImmutableList.of());
-    private AtomicReference<Optional<Duration>> cpuQuotaPeriod = new AtomicReference(Optional.empty());
-    private AtomicReference<Map<ResourceGroupIdTemplate, ResourceGroupSpec>> resourceGroupSpecs = new AtomicReference(ImmutableMap.of());
-
+    private final AtomicReference<List<SelectorSpec>> selectorSpecs = new AtomicReference(ImmutableList.of());
+    private final AtomicReference<Optional<Duration>> cpuQuotaPeriod = new AtomicReference(Optional.empty());
+    private final AtomicReference<Map<ResourceGroupIdTemplate, ResourceGroupSpec>> resourceGroupSpecs = new AtomicReference(ImmutableMap.of());
+    private final Map<ResourceGroupId, ResourceGroupIdTemplate> configuredGroups = new ConcurrentHashMap<>();
     public Map<ResourceGroupIdTemplate, ResourceGroupSpec> getResourceGroupSpecs()
     {
         return resourceGroupSpecs.get();
@@ -49,6 +51,11 @@ public class ResourceGroupConfigurationInfo
         return cpuQuotaPeriod.get();
     }
 
+    public Map<ResourceGroupId, ResourceGroupIdTemplate> getConfiguredGroups()
+    {
+        return ImmutableMap.copyOf(configuredGroups);
+    }
+
     public void setRootGroupSpecs(List<ResourceGroupSpec> rootGroupSpecs)
     {
         extractResourceGroupSpecs(rootGroupSpecs);
@@ -62,6 +69,11 @@ public class ResourceGroupConfigurationInfo
     public void setCpuQuotaPeriod(Optional<Duration> cpuQuotaPeriod)
     {
         this.cpuQuotaPeriod.set(cpuQuotaPeriod);
+    }
+
+    public void addGroup(ResourceGroupId resourceGroupId, ResourceGroupIdTemplate templateId)
+    {
+        configuredGroups.put(resourceGroupId, templateId);
     }
 
     private void extractResourceGroupSpecs(List<ResourceGroupSpec> rootGroupSpecs)
@@ -93,7 +105,8 @@ public class ResourceGroupConfigurationInfo
     }
 
     // Utility class to store the full id and spec
-    private static class Entry {
+    private static class Entry
+    {
         public final ResourceGroupIdTemplate id;
         public final ResourceGroupSpec spec;
         public Entry(ResourceGroupIdTemplate id, ResourceGroupSpec spec)
