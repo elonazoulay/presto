@@ -14,7 +14,10 @@
 package com.facebook.presto.resourceGroups;
 
 import com.facebook.presto.resourceGroups.systemtables.ResourceGroupConfigurationInfo;
-import com.facebook.presto.spi.resourceGroups.ResourceGroupConfigurationManager;
+import com.facebook.presto.spi.resourceGroups.ResourceGroup;
+import com.facebook.presto.spi.resourceGroups.ResourceGroupId;
+import com.facebook.presto.spi.resourceGroups.SelectionContext;
+import com.google.common.collect.ImmutableMap;
 import io.airlift.units.Duration;
 import org.testng.annotations.Test;
 
@@ -33,7 +36,7 @@ public class TestResourceGroupConfigurationInfo
     {
         ResourceGroupConfigurationInfo configurationInfo = new ResourceGroupConfigurationInfo();
         // Create resource group configuration manager just to populate configurationInfo
-        parse("resource_groups_config.json", configurationInfo);
+        getManager("resource_groups_config.json", configurationInfo);
         assertEquals(configurationInfo.getCpuQuotaPeriod(), Optional.of(Duration.valueOf("1h")));
         assertEquals(
                 getOnlyElement(configurationInfo.getSelectorSpecs()),
@@ -47,7 +50,25 @@ public class TestResourceGroupConfigurationInfo
         assertEquals(actual, getExpectedResourceGroupSpec());
     }
 
-    private FileResourceGroupConfigurationManager parse(String fileName, ResourceGroupConfigurationInfo configurationInfo)
+    @Test
+    public void testConfiguredGroups()
+    {
+        ResourceGroupConfigurationInfo configurationInfo = new ResourceGroupConfigurationInfo();
+        FileResourceGroupConfigurationManager manager = getManager("resource_groups_config.json", configurationInfo);
+        SelectionContext selectionContext = new SelectionContext(true, "user", Optional.empty(), 1);
+        ResourceGroup global = new TestingResourceGroup(new ResourceGroupId("global"));
+        manager.configure(global, selectionContext);
+        ResourceGroup sub = new TestingResourceGroup(new ResourceGroupId(new ResourceGroupId("global"), "sub"));
+        manager.configure(sub, selectionContext);
+        assertEquals(configurationInfo.getConfiguredGroups(),
+                ImmutableMap.of(
+                        new ResourceGroupId("global"),
+                        new ResourceGroupIdTemplate("global"),
+                        new ResourceGroupId(new ResourceGroupId("global"), "sub"),
+                        new ResourceGroupIdTemplate("global.sub")));
+    }
+
+    private FileResourceGroupConfigurationManager getManager(String fileName, ResourceGroupConfigurationInfo configurationInfo)
     {
         FileResourceGroupConfig config = new FileResourceGroupConfig();
         config.setConfigFile(getResourceFilePath(fileName));
