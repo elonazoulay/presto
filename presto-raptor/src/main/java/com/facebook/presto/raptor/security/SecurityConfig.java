@@ -11,38 +11,39 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.server.security;
+package com.facebook.presto.raptor.security;
 
 import io.airlift.configuration.Config;
-import io.airlift.configuration.ConfigDescription;
-import io.airlift.configuration.DefunctConfig;
 
 import javax.validation.constraints.NotNull;
 
-@DefunctConfig("http.server.authentication.enabled")
 public class SecurityConfig
 {
-    private AuthenticationType authenticationType = AuthenticationType.NONE;
+    private boolean enabled;
+    private String identityManager = "file";
 
-    public enum AuthenticationType
+    public boolean isEnabled()
     {
-        NONE,
-        KERBEROS,
-        LDAP,
-        MIXED
+        return enabled;
     }
 
     @NotNull
-    public AuthenticationType getAuthenticationType()
+    public String getIdentityManager()
     {
-        return authenticationType;
+        return identityManager;
     }
 
-    @Config("http-server.authentication.type")
-    @ConfigDescription("Authentication type (supported types: NONE, KERBEROS, LDAP, MIXED)")
-    public SecurityConfig setAuthenticationType(AuthenticationType authenticationType)
+    @Config("security.enabled")
+    public SecurityConfig setEnabled(boolean enabled)
     {
-        this.authenticationType = authenticationType;
+        this.enabled = enabled;
+        return this;
+    }
+
+    @Config("security.identity-manager")
+    public SecurityConfig setIdentityManager(String identityManager)
+    {
+        this.identityManager = identityManager;
         return this;
     }
 }
