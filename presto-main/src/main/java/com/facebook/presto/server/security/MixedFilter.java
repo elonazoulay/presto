@@ -28,14 +28,14 @@ import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.Enumeration;
 
-import static com.google.common.net.HttpHeaders.AUTHORIZATION;
-
 public class MixedFilter
         implements Filter
 {
     private static final Logger LOG = Logger.get(MixedFilter.class);
 
     private static final String INCLUDE_REALM_HEADER = "X-Airlift-Realm-In-Challenge";
+    private static final String SOURCE = "X-Presto-Source";
+    private static final String DAIQUERY = "daiquery";
 
     private final Filter ldapFilter;
     private final Filter krbFilter;
@@ -74,7 +74,7 @@ public class MixedFilter
             return;
         }
 
-        if (request.getHeader(AUTHORIZATION) == null) {
+        if (request.getHeader(SOURCE).startsWith(DAIQUERY)) {
             nextFilter.doFilter(servletRequest, servletResponse);
             return;
         }
