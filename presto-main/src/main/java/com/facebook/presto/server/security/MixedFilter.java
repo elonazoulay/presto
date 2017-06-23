@@ -74,7 +74,8 @@ public class MixedFilter
             return;
         }
 
-        if (request.getHeader(SOURCE).startsWith(DAIQUERY)) {
+        String source = request.getHeader(SOURCE);
+        if (source != null && source.startsWith(DAIQUERY)) {
             nextFilter.doFilter(servletRequest, servletResponse);
             return;
         }
