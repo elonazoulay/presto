@@ -65,6 +65,14 @@ the original query text (SQL), the identity of the user who ran the query
 and performance information about the query including how long the query
 was queued and analyzed.
 
+``runtime.query_queues``
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+The query_queues table contains information about currently running and
+queued queries on the Presto Cluster. From this table you can find out
+the approximate order of queued queries within their respective resource
+groups.
+
 ``runtime.tasks``
 ^^^^^^^^^^^^^^^^^
 
