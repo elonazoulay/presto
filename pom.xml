@@ -113,6 +113,7 @@
         <module>presto-thrift-connector-api</module>
         <module>presto-thrift-testing-server</module>
         <module>presto-thrift-connector</module>
+        <module>presto-turbonium</module>
     </modules>
 
     <dependencyManagement>
