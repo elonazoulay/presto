@@ -45,7 +45,7 @@ public class TestQueryQueueInfoSystemTable
             "approximate_order," +
             "query_id," +
             "is_queued" +
-            " FROM query_queues";
+            " FROM system.runtime.query_queues";
 
     // Copy of TestQueues with tests for db reconfiguration of resource groups
     private static final String LONG_LASTING_QUERY = "SELECT COUNT(*) FROM lineitem";
@@ -92,6 +92,9 @@ public class TestQueryQueueInfoSystemTable
             Session adminSession = adminSession();
             MaterializedResult result = queryRunner.execute(adminSession, QUEUE_INFO_QUERY);
             for (MaterializedRow row : result.getMaterializedRows()) {
+                if (row.getField(0).toString().equals("admin")) {
+                    continue;
+                }
                 assertEquals(row.getField(0).toString(), "global");
                 String resourceGroupId = row.getField(1).toString();
                 // Only filter for dashboard queries

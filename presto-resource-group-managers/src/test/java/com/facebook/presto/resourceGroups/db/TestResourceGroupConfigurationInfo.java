@@ -53,6 +53,7 @@ public class TestResourceGroupConfigurationInfo
             SelectorSpec selectorSpec = new SelectorSpec(
                     Optional.of(Pattern.compile("user")),
                     Optional.of(Pattern.compile("test_source")),
+                    Optional.empty(),
                     new ResourceGroupIdTemplate("global.sub"));
             assertEquals(getOnlyElement(configurationInfo.getSelectorSpecs()), selectorSpec);
             Map<ResourceGroupIdTemplate, ResourceGroupSpec> specs = configurationInfo.getResourceGroupSpecs();
@@ -73,6 +74,7 @@ public class TestResourceGroupConfigurationInfo
             SelectorSpec selectorSpec2 = new SelectorSpec(
                     Optional.of(Pattern.compile("user")),
                     Optional.of(Pattern.compile("test_source")),
+                    Optional.empty(),
                     new ResourceGroupIdTemplate("global.sub2"));
             assertEquals(
                     ImmutableSet.copyOf(configurationInfo.getSelectorSpecs()),
@@ -169,7 +171,7 @@ public class TestResourceGroupConfigurationInfo
         H2ResourceGroupsDao dao = daoProvider.get();
         ResourceGroupConfigurationInfo configurationInfo = new ResourceGroupConfigurationInfo();
         DbResourceGroupConfigurationManager manager = getManager(configurationInfo, dao);
-        SelectionContext selectionContext = new SelectionContext(true, "user", Optional.empty(), 1);
+        SelectionContext selectionContext = new SelectionContext(true, "user", Optional.empty(), 1, Optional.empty());
         ResourceGroup global = new TestingResourceGroup(new ResourceGroupId("global"));
         manager.configure(global, selectionContext);
         ResourceGroup sub = new TestingResourceGroup(new ResourceGroupId(new ResourceGroupId("global"), "sub"));

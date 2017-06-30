@@ -43,6 +43,7 @@ public class TestResourceGroupConfigurationInfo
                 new SelectorSpec(
                         Optional.empty(),
                         Optional.empty(),
+                        Optional.empty(),
                         new ResourceGroupIdTemplate("global")));
         Map<ResourceGroupIdTemplate, ResourceGroupSpec> specs = configurationInfo.getResourceGroupSpecs();
         assertEquals(specs.size(), 2);
@@ -55,7 +56,7 @@ public class TestResourceGroupConfigurationInfo
     {
         ResourceGroupConfigurationInfo configurationInfo = new ResourceGroupConfigurationInfo();
         FileResourceGroupConfigurationManager manager = getManager("resource_groups_config.json", configurationInfo);
-        SelectionContext selectionContext = new SelectionContext(true, "user", Optional.empty(), 1);
+        SelectionContext selectionContext = new SelectionContext(true, "user", Optional.empty(), 1, Optional.empty());
         ResourceGroup global = new TestingResourceGroup(new ResourceGroupId("global"));
         manager.configure(global, selectionContext);
         ResourceGroup sub = new TestingResourceGroup(new ResourceGroupId(new ResourceGroupId("global"), "sub"));
