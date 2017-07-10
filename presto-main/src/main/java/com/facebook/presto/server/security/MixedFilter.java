@@ -37,6 +37,8 @@ public class MixedFilter
 
     private static final String INCLUDE_REALM_HEADER = "X-Airlift-Realm-In-Challenge";
     private static final String DAIQUERY = "flib";
+    private static final String SOURCE = "X-Presto-Source";
+    private static final String DATA_SWARM = "dataswarm";
 
     private final Filter ldapFilter;
     private final Filter krbFilter;
@@ -75,13 +77,23 @@ public class MixedFilter
             return;
         }
 
-        String agent = request.getHeader(USER_AGENT);
-        if (agent != null && agent.startsWith(DAIQUERY)) {
+        if (headerStartsWith(request, USER_AGENT, DAIQUERY)) {
             nextFilter.doFilter(servletRequest, servletResponse);
             return;
         }
 
+        if (headerStartsWith(request, SOURCE, DATA_SWARM)) {
+            krbFilter.doFilter(servletRequest, servletResponse, nextFilter);
+            return;
+        }
+
         ldapFilter.doFilter(servletRequest, servletResponse, nextFilter);
+    }
+
+    private boolean headerStartsWith(HttpServletRequest request, String headerName, String headerPrefix)
+    {
+        String headerValue = request.getHeader(headerName);
+        return headerValue != null && headerValue.startsWith(headerPrefix);
     }
 
     private void dumpRequest(HttpServletRequest request)
