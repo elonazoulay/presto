@@ -23,6 +23,7 @@ import com.facebook.presto.spi.resourceGroups.ResourceGroupSelector;
 import com.facebook.presto.spi.resourceGroups.SelectionContext;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import io.airlift.log.Logger;
 import io.airlift.units.DataSize;
 import io.airlift.units.Duration;
 
@@ -47,6 +48,7 @@ import static java.util.Objects.requireNonNull;
 public abstract class AbstractResourceConfigurationManager
         implements ResourceGroupConfigurationManager
 {
+    private static final Logger log = Logger.get(AbstractResourceConfigurationManager.class);
     @GuardedBy("generalPoolMemoryFraction")
     private final Map<ResourceGroup, Double> generalPoolMemoryFraction = new HashMap<>();
     @GuardedBy("generalPoolMemoryFraction")
@@ -62,11 +64,15 @@ public abstract class AbstractResourceConfigurationManager
 
     // Calls loadInternal and then sets the configuration info
     @VisibleForTesting
-    public final ManagerSpec load()
+    public final void load()
     {
-        ManagerSpec managerSpec = loadInternal();
-        setConfigurationInfo(managerSpec);
-        return managerSpec;
+        try {
+            ManagerSpec managerSpec = loadInternal();
+            setConfigurationInfo(managerSpec);
+        }
+        catch (Exception e) {
+            log.error("Error loading configuration: %s", e);
+        }
     }
 
     protected void validateRootGroups(ManagerSpec managerSpec)
