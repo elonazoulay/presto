@@ -11,60 +11,59 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.resourceGroups.db;
+package com.facebook.presto.resourceGroups.connector;
 
 import com.facebook.presto.resourceGroups.ResourceGroupConfigurationInfo;
-import com.facebook.presto.spi.classloader.ThreadContextClassLoader;
-import com.facebook.presto.spi.memory.ClusterMemoryPoolManager;
-import com.facebook.presto.spi.resourceGroups.ResourceGroupConfigurationManager;
-import com.facebook.presto.spi.resourceGroups.ResourceGroupConfigurationManagerContext;
-import com.facebook.presto.spi.resourceGroups.ResourceGroupConfigurationManagerFactory;
-import com.google.common.base.Throwables;
+import com.facebook.presto.spi.ConnectorHandleResolver;
+import com.facebook.presto.spi.connector.Connector;
+import com.facebook.presto.spi.connector.ConnectorContext;
+import com.facebook.presto.spi.connector.ConnectorFactory;
 import com.google.inject.Injector;
 import io.airlift.bootstrap.Bootstrap;
-import io.airlift.json.JsonModule;
 
 import java.util.Map;
 
 import static java.util.Objects.requireNonNull;
 
-public class DbResourceGroupConfigurationManagerFactory
-        implements ResourceGroupConfigurationManagerFactory
+public class ResourceGroupsConnectorFactory
+        implements ConnectorFactory
 {
-    private final ClassLoader classLoader;
+    private static final String name = "resource-group-managers";
     private final ResourceGroupConfigurationInfo configurationInfo;
 
-    public DbResourceGroupConfigurationManagerFactory(ClassLoader classLoader, ResourceGroupConfigurationInfo configurationInfo)
+    public ResourceGroupsConnectorFactory(ResourceGroupConfigurationInfo configurationInfo)
     {
-        this.classLoader = requireNonNull(classLoader, "classLoader is null");
         this.configurationInfo = requireNonNull(configurationInfo, "configurationInfo is null");
     }
 
     @Override
     public String getName()
     {
-        return "db";
+        return name;
     }
 
     @Override
-    public ResourceGroupConfigurationManager create(Map<String, String> config, ResourceGroupConfigurationManagerContext context)
+    public ConnectorHandleResolver getHandleResolver()
     {
-        try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
-            Bootstrap app = new Bootstrap(
-                    new JsonModule(),
-                    new DbResourceGroupsModule(),
-                    binder -> binder.bind(ClusterMemoryPoolManager.class).toInstance(context.getMemoryPoolManager()),
-                    binder -> binder.bind(ResourceGroupConfigurationInfo.class).toInstance(configurationInfo));
+        return new ResourceGroupsHandleResolver();
+    }
 
+    @Override
+    public Connector create(String connectorId, Map<String, String> config, ConnectorContext context)
+    {
+        try {
+            Bootstrap app = new Bootstrap(
+                    new ResourceGroupsConnectorModule(),
+                    binder -> binder.bind(ResourceGroupConfigurationInfo.class).toInstance(configurationInfo));
             Injector injector = app
                     .strictConfig()
                     .doNotInitializeLogging()
                     .setRequiredConfigurationProperties(config)
                     .initialize();
-            return injector.getInstance(DbResourceGroupConfigurationManager.class);
+            return injector.getInstance(ResourceGroupsConnector.class);
         }
         catch (Exception e) {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e);
         }
     }
 }
