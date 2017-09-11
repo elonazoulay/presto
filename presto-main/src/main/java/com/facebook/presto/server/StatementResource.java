@@ -180,7 +180,7 @@ public class StatementResource
         ExchangeClient exchangeClient = exchangeClientSupplier.get(deltaMemoryInBytes -> {});
         Query query = new Query(
                 sessionSupplier,
-                statement,
+                querySubmission.getQuery(),
                 queryManager,
                 sessionPropertyManager,
                 exchangeClient,
