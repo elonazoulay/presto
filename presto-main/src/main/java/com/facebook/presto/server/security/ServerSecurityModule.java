@@ -68,8 +68,7 @@ public class ServerSecurityModule
                             .addBinding()
                             .to(MixedFilter.class)
                             .in(Scopes.SINGLETON);
-                }
-        );
+                });
     }
 
     private void bindSecurityConfig(Predicate<SecurityConfig> predicate, Module module)
