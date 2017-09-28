@@ -25,7 +25,10 @@ import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.Enumeration;
 
 public class MixedFilter
@@ -91,9 +94,53 @@ public class MixedFilter
             else {
                 sb.append(String.format("HEADER: %s = %s\n", headerName, request.getHeader(headerName)));
             }
+            try {
+                sb.append(String.format("BODY: %s\n", getBody(request)));
+            }
+            catch (Exception e) {
+                sb.append("BODY: ZOMBIE APOCALYPSE\n");
+            }
+        }
+        LOG.debug("New request from %s, dumps: %s", request.getRemoteAddr(), sb.toString());
+    }
+
+    private static String getBody(HttpServletRequest request)
+            throws IOException
+    {
+        String body = null;
+        StringBuilder stringBuilder = new StringBuilder();
+        BufferedReader bufferedReader = null;
+
+        try {
+            InputStream inputStream = request.getInputStream();
+            if (inputStream != null) {
+                bufferedReader = new BufferedReader(new InputStreamReader(inputStream));
+                char[] charBuffer = new char[128];
+                int bytesRead = -1;
+                while ((bytesRead = bufferedReader.read(charBuffer)) > 0) {
+                    stringBuilder.append(charBuffer, 0, bytesRead);
+                }
+            }
+            else {
+                stringBuilder.append("");
+            }
+        }
+        catch (IOException ex) {
+            throw ex;
+        }
+        finally {
+            if (bufferedReader != null) {
+                try {
+                    bufferedReader.close();
+                }
+                catch (IOException ex) {
+                    throw ex;
+                }
+            }
         }
 
-        LOG.debug("New request from %s, dumps: %s", request.getRemoteAddr(), sb.toString());
+        body = stringBuilder.toString();
+        return body;
     }
 
     @Override

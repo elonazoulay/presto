@@ -197,6 +197,7 @@ public class StatementResource
      */
     private static QuerySubmission parseStringToQuerySubmission(HttpServletRequest servletRequest, String statement, JsonCodec<QuerySubmission> querySubmissionCodec)
     {
+
         if (servletRequest.getHeader(PRESTO_PREPARED_STATEMENT_IN_BODY) != null) {
             return querySubmissionCodec.fromJson(statement);
         }

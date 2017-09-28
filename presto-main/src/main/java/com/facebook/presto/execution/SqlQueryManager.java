@@ -383,7 +383,7 @@ public class SqlQueryManager
                 query = query.substring(0, maxQueryLength);
                 throw new PrestoException(QUERY_TEXT_TOO_LARGE, format("Query text length (%s) exceeds the maximum length (%s)", queryLength, maxQueryLength));
             }
-
+            log.debug("WHAT IS BEING PARSED: %s", query);
             Statement wrappedStatement = sqlParser.createStatement(query);
             statement = unwrapExecuteStatement(wrappedStatement, sqlParser, session);
             List<Expression> parameters = wrappedStatement instanceof Execute ? ((Execute) wrappedStatement).getParameters() : emptyList();
