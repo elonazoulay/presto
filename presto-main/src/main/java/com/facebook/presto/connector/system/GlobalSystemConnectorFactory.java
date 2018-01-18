@@ -21,8 +21,6 @@ import com.facebook.presto.spi.connector.ConnectorFactory;
 import com.facebook.presto.spi.procedure.Procedure;
 import com.google.common.collect.ImmutableSet;
 
-import javax.inject.Inject;
-
 import java.util.Map;
 import java.util.Set;
 
@@ -34,7 +32,6 @@ public class GlobalSystemConnectorFactory
     private final Set<SystemTable> tables;
     private final Set<Procedure> procedures;
 
-    @Inject
     public GlobalSystemConnectorFactory(Set<SystemTable> tables, Set<Procedure> procedures)
     {
         this.tables = ImmutableSet.copyOf(requireNonNull(tables, "tables is null"));
