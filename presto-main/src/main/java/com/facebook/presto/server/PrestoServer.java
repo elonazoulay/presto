@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.server;
 
+import com.facebook.presto.connector.system.SystemConnectorRegistrar;
 import com.facebook.presto.eventlistener.EventListenerManager;
 import com.facebook.presto.eventlistener.EventListenerModule;
 import com.facebook.presto.execution.resourceGroups.ResourceGroupManager;
@@ -114,7 +115,9 @@ public class PrestoServer
             Injector injector = app.strictConfig().initialize();
 
             injector.getInstance(PluginManager.class).loadPlugins();
-
+            injector.getInstance(ResourceGroupManager.class)
+                    .loadConfigurationManager(injector.getInstance(SystemConnectorRegistrar.class));
+            injector.getInstance(SystemConnectorRegistrar.class).loadGlobalSystemConnector();
             injector.getInstance(StaticCatalogStore.class).loadCatalogs();
 
             // TODO: remove this huge hack
@@ -125,7 +128,6 @@ public class PrestoServer
                     injector.getInstance(NodeSchedulerConfig.class));
 
             injector.getInstance(SessionSupplier.class).loadConfigurationManager();
-            injector.getInstance(ResourceGroupManager.class).loadConfigurationManager();
             injector.getInstance(AccessControlManager.class).loadSystemAccessControl();
             injector.getInstance(EventListenerManager.class).loadConfiguredEventListener();
 
