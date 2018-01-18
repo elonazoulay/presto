@@ -13,7 +13,6 @@
  */
 package com.facebook.presto.connector.system;
 
-import com.facebook.presto.connector.ConnectorManager;
 import com.facebook.presto.connector.system.jdbc.AttributeJdbcTable;
 import com.facebook.presto.connector.system.jdbc.CatalogJdbcTable;
 import com.facebook.presto.connector.system.jdbc.ColumnJdbcTable;
@@ -29,15 +28,12 @@ import com.facebook.presto.connector.system.jdbc.TypesJdbcTable;
 import com.facebook.presto.connector.system.jdbc.UdtJdbcTable;
 import com.facebook.presto.spi.SystemTable;
 import com.facebook.presto.spi.procedure.Procedure;
-import com.google.common.collect.ImmutableMap;
 import com.google.inject.Binder;
 import com.google.inject.Module;
 import com.google.inject.Scopes;
 import com.google.inject.multibindings.Multibinder;
 import com.google.inject.multibindings.MultibindingsScanner;
 import com.google.inject.multibindings.ProvidesIntoSet;
-
-import javax.inject.Inject;
 
 public class SystemConnectorModule
         implements Module
@@ -74,23 +70,12 @@ public class SystemConnectorModule
 
         binder.bind(KillQueryProcedure.class).in(Scopes.SINGLETON);
 
-        binder.bind(GlobalSystemConnectorFactory.class).in(Scopes.SINGLETON);
-        binder.bind(SystemConnectorRegistrar.class).asEagerSingleton();
+        binder.bind(SystemConnectorRegistrar.class).in(Scopes.SINGLETON);
     }
 
     @ProvidesIntoSet
     public static Procedure getKillQueryProcedure(KillQueryProcedure procedure)
     {
         return procedure.getProcedure();
-    }
-
-    private static class SystemConnectorRegistrar
-    {
-        @Inject
-        public SystemConnectorRegistrar(ConnectorManager manager, GlobalSystemConnectorFactory globalSystemConnectorFactory)
-        {
-            manager.addConnectorFactory(globalSystemConnectorFactory);
-            manager.createConnection(GlobalSystemConnector.NAME, GlobalSystemConnector.NAME, ImmutableMap.of());
-        }
     }
 }
