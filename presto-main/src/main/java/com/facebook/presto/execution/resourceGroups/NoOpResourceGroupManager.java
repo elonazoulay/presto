@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.execution.resourceGroups;
 
+import com.facebook.presto.connector.system.SystemConnectorRegistrar;
 import com.facebook.presto.execution.QueryExecution;
 import com.facebook.presto.server.ResourceGroupStateInfo;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupConfigurationManagerFactory;
@@ -53,7 +54,7 @@ public final class NoOpResourceGroupManager
     }
 
     @Override
-    public void loadConfigurationManager()
+    public void loadConfigurationManager(SystemConnectorRegistrar registrar)
             throws Exception
     {
         // no-op

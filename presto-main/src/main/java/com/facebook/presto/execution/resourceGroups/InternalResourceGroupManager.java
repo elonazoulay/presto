@@ -14,6 +14,7 @@
 package com.facebook.presto.execution.resourceGroups;
 
 import com.facebook.presto.Session;
+import com.facebook.presto.connector.system.SystemConnectorRegistrar;
 import com.facebook.presto.execution.QueryExecution;
 import com.facebook.presto.execution.resourceGroups.InternalResourceGroup.RootInternalResourceGroup;
 import com.facebook.presto.server.ResourceGroupStateInfo;
@@ -138,7 +139,7 @@ public final class InternalResourceGroupManager
     }
 
     @Override
-    public void loadConfigurationManager()
+    public void loadConfigurationManager(SystemConnectorRegistrar registrar)
             throws Exception
     {
         if (RESOURCE_GROUPS_CONFIGURATION.exists()) {
@@ -153,6 +154,7 @@ public final class InternalResourceGroupManager
         else {
             setConfigurationManager(LEGACY_RESOURCE_GROUP_MANAGER, ImmutableMap.of());
         }
+        registrar.registerSystemTables(getConfigurationManager().getSystemTables());
     }
 
     @VisibleForTesting

@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.execution.resourceGroups;
 
+import com.facebook.presto.connector.system.SystemConnectorRegistrar;
 import com.facebook.presto.execution.QueryQueueManager;
 import com.facebook.presto.server.ResourceGroupStateInfo;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupConfigurationManagerFactory;
@@ -28,6 +29,6 @@ public interface ResourceGroupManager
 
     void addConfigurationManagerFactory(ResourceGroupConfigurationManagerFactory factory);
 
-    void loadConfigurationManager()
+    void loadConfigurationManager(SystemConnectorRegistrar registrar)
             throws Exception;
 }
