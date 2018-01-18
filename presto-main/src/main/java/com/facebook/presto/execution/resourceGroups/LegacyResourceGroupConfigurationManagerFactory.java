@@ -14,6 +14,7 @@
 package com.facebook.presto.execution.resourceGroups;
 
 import com.facebook.presto.execution.QueryManagerConfig;
+import com.facebook.presto.spi.SystemTable;
 import com.facebook.presto.spi.resourceGroups.ResourceGroup;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupConfigurationManager;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupConfigurationManagerContext;
@@ -22,12 +23,14 @@ import com.facebook.presto.spi.resourceGroups.ResourceGroupId;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupSelector;
 import com.facebook.presto.spi.resourceGroups.SelectionContext;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 
 import javax.inject.Inject;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
@@ -74,6 +77,12 @@ public class LegacyResourceGroupConfigurationManagerFactory
         public List<ResourceGroupSelector> getSelectors()
         {
             return ImmutableList.of(context -> Optional.of(GLOBAL));
+        }
+
+        @Override
+        public Set<SystemTable> getSystemTables()
+        {
+            return ImmutableSet.of();
         }
     }
 }

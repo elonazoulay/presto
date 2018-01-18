@@ -13,7 +13,10 @@
  */
 package com.facebook.presto.spi.resourceGroups;
 
+import com.facebook.presto.spi.SystemTable;
+
 import java.util.List;
+import java.util.Set;
 
 public interface ResourceGroupConfigurationManager
 {
@@ -27,4 +30,6 @@ public interface ResourceGroupConfigurationManager
      * This method is called for every query that is submitted, so it should be fast.
      */
     List<ResourceGroupSelector> getSelectors();
+
+    Set<SystemTable> getSystemTables();
 }
