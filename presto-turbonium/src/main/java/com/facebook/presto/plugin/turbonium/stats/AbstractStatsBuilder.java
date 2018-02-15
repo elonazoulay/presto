@@ -26,7 +26,7 @@ public abstract class AbstractStatsBuilder<T>
 
     private int nullCount;
     private int nonNullCount;
-    private int distinctValueCount = 0;
+    private int distinctValueCount;
     private Optional<Map<T, List<Integer>>> distinctValues = Optional.of(new HashMap<>());
 
     protected abstract void setIfMin(T value);

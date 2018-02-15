@@ -26,7 +26,6 @@ import io.airlift.log.Logger;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-
 import javax.inject.Inject;
 
 import java.util.Collections;
@@ -55,7 +54,7 @@ public class TurboniumPagesStore
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     @GuardedBy("lock")
-    private long currentBytes = 0;
+    private long currentBytes;
 
     @Inject
     public TurboniumPagesStore(TurboniumConfigManager configManager)

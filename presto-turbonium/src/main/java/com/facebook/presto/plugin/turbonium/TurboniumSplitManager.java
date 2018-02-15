@@ -34,7 +34,7 @@ public final class TurboniumSplitManager
         implements ConnectorSplitManager
 {
     @Override
-    public ConnectorSplitSource getSplits(ConnectorTransactionHandle transactionHandle, ConnectorSession session, ConnectorTableLayoutHandle layoutHandle)
+    public ConnectorSplitSource getSplits(ConnectorTransactionHandle transactionHandle, ConnectorSession session, ConnectorTableLayoutHandle layoutHandle, SplitSchedulingStrategy splitSchedulingStrategy)
     {
         TurboniumTableLayoutHandle layout = (TurboniumTableLayoutHandle) layoutHandle;
         List<HostAddress> hosts = layout.getTable().getHosts();
