@@ -17,6 +17,10 @@ import com.facebook.presto.sql.parser.ParsingOptions;
 import io.airlift.configuration.Config;
 import io.airlift.configuration.ConfigDescription;
 
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.regex.Pattern;
+
 public class SemanticAnalyzerConfig
 {
     private ParsingOptions.DecimalLiteralTreatment parsingOptions = ParsingOptions.DecimalLiteralTreatment.AS_DOUBLE;
@@ -24,6 +28,9 @@ public class SemanticAnalyzerConfig
     private String sourceType = "file";
     private char delimiter = '\t';
     private char escape = '\\';
+    private Path directory = Paths.get(".");
+    private Pattern pattern = Pattern.compile("(.*)");
+    private String prefix = "";
 
     public ParsingOptions.DecimalLiteralTreatment getParsingOptions()
     {
@@ -86,6 +93,44 @@ public class SemanticAnalyzerConfig
     public SemanticAnalyzerConfig setEscape(char escape)
     {
         this.escape = escape;
+        return this;
+    }
+
+    public Path getDirectory()
+    {
+        return directory;
+    }
+
+    @ConfigDescription("Directory to put files in")
+    @Config("directory")
+    public SemanticAnalyzerConfig setDirectory(String directory)
+    {
+        this.directory = Paths.get(directory);
+        return this;
+    }
+
+    public Pattern getPattern()
+    {
+        return pattern;
+    }
+    @ConfigDescription("Source regexp, must contain atleast one group, the first of which will be used ex. \".*(argus\\d+)$\"")
+    @Config("source-regex")
+    public SemanticAnalyzerConfig setPattern(String pattern)
+    {
+        this.pattern = Pattern.compile(pattern);
+        return this;
+    }
+
+    public String getPrefix()
+    {
+        return prefix;
+    }
+
+    @ConfigDescription("Prefix to output file name")
+    @Config("prefix")
+    public SemanticAnalyzerConfig setPrefix(String prefix)
+    {
+        this.prefix = prefix;
         return this;
     }
 }
