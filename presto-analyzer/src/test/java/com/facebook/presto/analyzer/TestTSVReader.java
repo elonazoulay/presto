@@ -28,6 +28,7 @@ public class TestTSVReader
     {
         SemanticAnalyzerConfig config = new SemanticAnalyzerConfig();
         config.setSource("test.sql");
+        config.setSourceType("resource");
         TSVReader tsvReader = new TSVReader(new TSVSource.ResourceProvider(config).get(),
                 config.getDelimiter(),
                 config.getEscape());
@@ -41,6 +42,7 @@ public class TestTSVReader
     {
         SemanticAnalyzerConfig config = new SemanticAnalyzerConfig();
         config.setSource("test.sql");
+        config.setSourceType("resource");
         AnalyzeCommandRunner command = new AnalyzeCommandRunner(config);
         command.run();
     }
