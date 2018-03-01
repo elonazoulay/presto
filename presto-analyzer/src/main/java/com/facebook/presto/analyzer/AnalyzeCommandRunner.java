@@ -19,7 +19,10 @@ import javax.inject.Provider;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
+import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 
 public class AnalyzeCommandRunner
@@ -39,11 +42,20 @@ public class AnalyzeCommandRunner
     {
         try {
             LegacyOrderByAnalyzer analyzer = new LegacyOrderByAnalyzer(config);
+            Path directory = config.getDirectory();
+            if (!Files.exists(directory)) {
+                Files.createDirectory(directory);
+            }
+            else if (!Files.isDirectory(directory)) {
+                throw new RuntimeException(format("Invalid directory %s", directory));
+            }
+            QueryDescriptorFileWriter fileWriter = new QueryDescriptorFileWriter(config);
             TSVSource source = new TSVSource(inputStreamProvider.get(), config);
             while (source.hasNext()) {
                 QueryDescriptor queryDescriptor = source.next();
                 if (analyzer.isCandidate(queryDescriptor)) {
-                    System.out.println(queryDescriptor.getQueryId());
+                    fileWriter.writeFile(queryDescriptor, false);
+                    fileWriter.writeFile(queryDescriptor, true);
                 }
             }
         }

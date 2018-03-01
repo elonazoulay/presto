@@ -13,18 +13,24 @@
  */
 package com.facebook.presto.analyzer;
 
+import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 
 public class QueryDescriptor
 {
+    private static final String COMMENT_FORMAT = "-- %s\n";
     private final String environment;
+    private final String catalog;
+    private final String schema;
     private final String queryId;
     private final String source;
     private final String sql;
 
-    public QueryDescriptor(String environment, String queryId, String source, String sql)
+    public QueryDescriptor(String environment, String catalog, String schema, String queryId, String source, String sql)
     {
         this.environment = requireNonNull(environment, "environment is null");
+        this.catalog = requireNonNull(catalog, "catalog is null");
+        this.schema = requireNonNull(schema, "schema is null");
         this.queryId = requireNonNull(queryId, "queryId is null");
         this.source = requireNonNull(source, "source is null");
         this.sql = requireNonNull(sql, "sql is null");
@@ -35,11 +41,20 @@ public class QueryDescriptor
         return environment;
     }
 
+    public String getCatalog()
+    {
+        return catalog;
+    }
+
     public String getQueryId()
     {
         return queryId;
     }
 
+    public String getSchema()
+    {
+        return schema;
+    }
     public String getSource()
     {
         return source;
@@ -48,5 +63,17 @@ public class QueryDescriptor
     public String getSql()
     {
         return sql;
+    }
+
+    public String toString()
+    {
+        return new StringBuilder()
+                .append(format(COMMENT_FORMAT, getEnvironment()))
+                .append(format(COMMENT_FORMAT, getCatalog()))
+                .append(format(COMMENT_FORMAT, getSchema()))
+                .append(format(COMMENT_FORMAT, getSource()))
+                .append(format(COMMENT_FORMAT, getQueryId()))
+                .append(getSql())
+                .toString();
     }
 }
