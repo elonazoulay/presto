@@ -1,0 +1,4 @@
+legacy-orderby-analyzer.source=queries.all
+legacy-orderby-analyzer.source-regex=.*argus:(\\d+)$
+legacy-orderby-analyzer.directory=output
+legacy-orderby-analyzer.prefix=argus

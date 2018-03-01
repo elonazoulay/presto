@@ -32,12 +32,12 @@ public class TSVSource
 {
     private final TSVReader tsvReader;
     private List<String> line;
-
+    private final SemanticAnalyzerConfig config;
     public TSVSource(InputStream inputStream, SemanticAnalyzerConfig config)
             throws IOException
     {
         requireNonNull(inputStream, "inputStreamSupplier is null");
-        requireNonNull(config, "config is null");
+        this.config = requireNonNull(config, "config is null");
         tsvReader = new TSVReader(
                 inputStream,
                 config.getDelimiter(),
@@ -57,7 +57,8 @@ public class TSVSource
         if (!hasNext()) {
             throw new NoSuchElementException();
         }
-        QueryDescriptor queryDescriptor = new QueryDescriptor(line.get(0), line.get(1), line.get(2), line.get(3));
+        QueryDescriptor queryDescriptor = new QueryDescriptor(
+                line.get(0), line.get(1), line.get(2), line.get(3), line.get(4), line.get(5));
         try {
             line = tsvReader.readLine();
         }
