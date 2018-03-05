@@ -20,7 +20,6 @@ import com.facebook.presto.execution.QueryManager;
 import com.facebook.presto.spi.security.Identity;
 import com.facebook.presto.testing.MaterializedResult;
 import com.facebook.presto.testing.MaterializedRow;
-import com.facebook.presto.testing.TestingSession;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -53,6 +52,7 @@ import static com.facebook.presto.testing.TestingAccessControlManager.TestingPri
 import static com.facebook.presto.testing.TestingAccessControlManager.TestingPrivilegeType.SET_USER;
 import static com.facebook.presto.testing.TestingAccessControlManager.privilege;
 import static com.facebook.presto.testing.TestingSession.TESTING_CATALOG;
+import static com.facebook.presto.testing.TestingSession.testSessionBuilder;
 import static com.facebook.presto.testing.assertions.Assert.assertEquals;
 import static com.facebook.presto.tests.QueryAssertions.assertContains;
 import static com.google.common.collect.Iterables.getOnlyElement;
@@ -746,6 +746,34 @@ public abstract class AbstractTestDistributedQueries
     }
 
     @Test
+    public void testCurrentUserInView()
+    {
+        skipTestUnless(supportsViews());
+        if (!getSession().getCatalog().isPresent() || !getSession().getSchema().isPresent()) {
+            return;
+        }
+        assertUpdate("CREATE TABLE test_accounts AS SELECT user_name, account_name" +
+                "  FROM (VALUES ('user1', 'account1'), ('user2', 'account2'))" +
+                "  t(user_name, account_name)", 2);
+        assertUpdate("CREATE VIEW test_accounts_view AS SELECT account_name FROM test_accounts WHERE user_name = CURRENT_USER");
+
+        Session user1 = testSessionBuilder()
+                .setCatalog(getSession().getCatalog().get())
+                .setSchema(getSession().getSchema().get())
+                .setIdentity(new Identity("user1", Optional.empty()))
+                .build();
+
+        Session user2 = testSessionBuilder()
+                .setCatalog(getSession().getCatalog().get())
+                .setSchema(getSession().getSchema().get())
+                .setIdentity(new Identity("user2", Optional.empty()))
+                .build();
+
+        assertQuery(user1, "SELECT account_name FROM test_accounts_view", "VALUES 'account1'");
+        assertQuery(user2, "SELECT account_name FROM test_accounts_view", "VALUES 'account2'");
+    }
+
+    @Test
     public void testQueryLoggingCount()
     {
         QueryManager queryManager = ((DistributedQueryRunner) getQueryRunner()).getCoordinator().getQueryManager();
@@ -874,7 +902,7 @@ public abstract class AbstractTestDistributedQueries
     {
         skipTestUnless(supportsViews());
 
-        Session viewOwnerSession = TestingSession.testSessionBuilder()
+        Session viewOwnerSession = testSessionBuilder()
                 .setIdentity(new Identity("test_view_access_owner", Optional.empty()))
                 .setCatalog(getSession().getCatalog().get())
                 .setSchema(getSession().getSchema().get())
@@ -907,7 +935,7 @@ public abstract class AbstractTestDistributedQueries
                 "SELECT * FROM test_view_access",
                 privilege(getSession().getUser(), "orders", SELECT_TABLE));
 
-        Session nestedViewOwnerSession = TestingSession.testSessionBuilder()
+        Session nestedViewOwnerSession = testSessionBuilder()
                 .setIdentity(new Identity("test_nested_view_access_owner", Optional.empty()))
                 .setCatalog(getSession().getCatalog().get())
                 .setSchema(getSession().getSchema().get())

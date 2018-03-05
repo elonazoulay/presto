@@ -25,5 +25,5 @@ Functions and Operators
     functions/url
     functions/geospatial
     functions/color
-    functions/sysinfo
+    functions/session-info
     functions/teradata

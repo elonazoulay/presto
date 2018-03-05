@@ -7376,12 +7376,6 @@ public abstract class AbstractTestQueries
     }
 
     @Test
-    public void testCurrentUser()
-    {
-        assertQuery("SELECT CURRENT_USER", "SELECT '" + getSession().getUser() + "'");
-    }
-
-    @Test
     public void testFilterPushdownWithAggregation()
     {
         assertQuery("SELECT * FROM (SELECT count(*) FROM orders) WHERE 0=1");

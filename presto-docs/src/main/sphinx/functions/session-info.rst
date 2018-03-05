@@ -1,8 +1,8 @@
 ============================
-System Information Functions
+Session Information
 ============================
 
-These functions provide standard SQL compliance.
+Functions providing information about the query execution environment.
 
 String Functions
 ----------------
@@ -11,4 +11,4 @@ String Functions
 
     Returns the current user running the query.
 
-    .. note:: This is a SQL-standard function and does not use parenthesis.
+    .. note:: This is part of the SQL-standard and does not use parenthesis.

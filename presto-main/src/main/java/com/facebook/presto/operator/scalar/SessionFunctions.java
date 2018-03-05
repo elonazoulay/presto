@@ -26,7 +26,7 @@ public final class SessionFunctions
 {
     private SessionFunctions() {}
 
-    @ScalarFunction("current_user")
+    @ScalarFunction(value = "current_user", hidden = true)
     @Description("current user")
     @SqlType(StandardTypes.VARCHAR)
     public static Slice currentUser(ConnectorSession session)
