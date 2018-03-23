@@ -19,16 +19,22 @@ import com.facebook.presto.sql.parser.ParsingOptions;
 import com.facebook.presto.sql.parser.SqlParser;
 import com.facebook.presto.sql.parser.SqlParserOptions;
 import com.facebook.presto.sql.tree.AstVisitor;
+import com.facebook.presto.sql.tree.CreateTableAsSelect;
+import com.facebook.presto.sql.tree.CreateView;
 import com.facebook.presto.sql.tree.DereferenceExpression;
 import com.facebook.presto.sql.tree.ExistsPredicate;
 import com.facebook.presto.sql.tree.Expression;
 import com.facebook.presto.sql.tree.Identifier;
 import com.facebook.presto.sql.tree.IfExpression;
+import com.facebook.presto.sql.tree.Insert;
 import com.facebook.presto.sql.tree.Node;
 import com.facebook.presto.sql.tree.OrderBy;
+import com.facebook.presto.sql.tree.Query;
 import com.facebook.presto.sql.tree.QuerySpecification;
+import com.facebook.presto.sql.tree.Relation;
 import com.facebook.presto.sql.tree.Select;
 import com.facebook.presto.sql.tree.SelectItem;
+import com.facebook.presto.sql.tree.SetOperation;
 import com.facebook.presto.sql.tree.SingleColumn;
 import com.facebook.presto.sql.tree.SortItem;
 import com.facebook.presto.sql.tree.Statement;
@@ -68,16 +74,44 @@ public class LegacyOrderByAnalyzer
             log.error("QueryId %s: %s", queryDescriptor.getQueryId(), e);
             return false;
         }
-        if (!(statement instanceof com.facebook.presto.sql.tree.Query)) {
+        Query query;
+        if (statement instanceof Query) {
+            query = (Query) statement;
+        }
+        else if (statement instanceof Insert) {
+            query = ((Insert) statement).getQuery();
+        }
+        else if (statement instanceof CreateView) {
+            query = ((CreateView) statement).getQuery();
+        }
+        else if (statement instanceof CreateTableAsSelect) {
+            query = ((CreateTableAsSelect) statement).getQuery();
+        }
+        else {
             return false;
         }
-        com.facebook.presto.sql.tree.Query query = (com.facebook.presto.sql.tree.Query) statement;
-        QuerySpecification querySpecification = null;
-        if (!(query.getQueryBody() instanceof QuerySpecification)) {
-            return false;
-        }
-        querySpecification = (QuerySpecification) query.getQueryBody();
 
+        if (query.getQueryBody() instanceof QuerySpecification) {
+            return containsLegacyOrderBy((QuerySpecification) query.getQueryBody());
+        }
+        else if (query.getQueryBody() instanceof SetOperation) {
+            for (Relation relation : ((SetOperation) query.getQueryBody()).getRelations()) {
+                if (!(relation instanceof QuerySpecification)) {
+                    return false;
+                }
+                if (!containsLegacyOrderBy((QuerySpecification) relation)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+
+    private boolean containsLegacyOrderBy(QuerySpecification querySpecification)
+    {
         OrderBy orderBy = null;
         if (!querySpecification.getOrderBy().isPresent()) {
             return false;
@@ -208,9 +242,14 @@ public class LegacyOrderByAnalyzer
 
     public static void main(String[] args)
     {
-        String sql = "select t.z/t.y a, b from t order by t.z, a, t.z, t.z/t.y, ln(a) + ln(ln(a/t.z))";
+        String sql = "WITH\n" +
+                "  x AS (SELECT a FROM t),\n" +
+                "  y AS (SELECT a AS b FROM x),\n" +
+                "  z AS (SELECT b AS c FROM y)\n" +
+                "SELECT -c as c FROM z ORDER BY -c";
+                //"select t.z/t.y a, b from t order by t.z, a, t.z, t.z/t.y, ln(a) + ln(ln(a/t.z))";
         SemanticAnalyzerConfig config = new SemanticAnalyzerConfig();
         LegacyOrderByAnalyzer analyzer = new LegacyOrderByAnalyzer(config);
-        analyzer.isCandidate(new QueryDescriptor("test", "test", "test", "test", "test_id", sql));
+        System.out.println(analyzer.isCandidate(new QueryDescriptor("test", "test", "test", "test", "test_id", sql)));
     }
 }
