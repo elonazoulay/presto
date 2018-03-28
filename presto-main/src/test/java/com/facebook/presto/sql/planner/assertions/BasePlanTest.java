@@ -14,6 +14,7 @@
 package com.facebook.presto.sql.planner.assertions;
 
 import com.facebook.presto.Session;
+import com.facebook.presto.execution.WarningCollector;
 import com.facebook.presto.sql.planner.LogicalPlanner;
 import com.facebook.presto.sql.planner.Plan;
 import com.facebook.presto.sql.planner.StatsRecorder;
@@ -125,7 +126,7 @@ public class BasePlanTest
     protected void assertPlan(String sql, LogicalPlanner.Stage stage, PlanMatchPattern pattern, List<PlanOptimizer> optimizers)
     {
         queryRunner.inTransaction(transactionSession -> {
-            Plan actualPlan = queryRunner.createPlan(transactionSession, sql, optimizers, stage);
+            Plan actualPlan = queryRunner.createPlan(transactionSession, sql, optimizers, stage, WarningCollector.NOOP);
             PlanAssert.assertPlan(transactionSession, queryRunner.getMetadata(), queryRunner.getStatsCalculator(), actualPlan, pattern);
             return null;
         });

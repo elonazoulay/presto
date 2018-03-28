@@ -155,6 +155,7 @@ public class TestQueryStateInfo
                 Optional.empty(),
                 null,
                 null,
+                ImmutableList.of(),
                 ImmutableSet.of(),
                 Optional.empty(),
                 false,

@@ -14,6 +14,7 @@
 package com.facebook.presto.sql.analyzer;
 
 import com.facebook.presto.Session;
+import com.facebook.presto.execution.WarningCollector;
 import com.facebook.presto.metadata.FunctionRegistry;
 import com.facebook.presto.metadata.Metadata;
 import com.facebook.presto.metadata.OperatorNotFoundException;
@@ -1440,7 +1441,7 @@ public class ExpressionAnalyzer
             List<Expression> parameters,
             boolean isDescribe)
     {
-        return analyzeExpressionsWithSymbols(session, metadata, sqlParser, types, expressions, parameters, isDescribe).getExpressionTypes();
+        return analyzeExpressionsWithSymbols(session, metadata, sqlParser, types, expressions, parameters, WarningCollector.NOOP, isDescribe).getExpressionTypes();
     }
 
     public static Map<NodeRef<Expression>, Type> getExpressionTypesFromInput(
@@ -1462,7 +1463,7 @@ public class ExpressionAnalyzer
             Iterable<Expression> expressions,
             List<Expression> parameters)
     {
-        return analyzeExpressionsWithInputs(session, metadata, sqlParser, types, expressions, parameters).getExpressionTypes();
+        return analyzeExpressionsWithInputs(session, metadata, sqlParser, types, expressions, parameters, WarningCollector.NOOP).getExpressionTypes();
     }
 
     public static ExpressionAnalysis analyzeExpressionsWithSymbols(
@@ -1472,9 +1473,10 @@ public class ExpressionAnalyzer
             Map<Symbol, Type> types,
             Iterable<Expression> expressions,
             List<Expression> parameters,
+            WarningCollector warningCollector,
             boolean isDescribe)
     {
-        return analyzeExpressions(session, metadata, sqlParser, new RelationType(), types, expressions, parameters, isDescribe);
+        return analyzeExpressions(session, metadata, sqlParser, new RelationType(), types, expressions, parameters, warningCollector, isDescribe);
     }
 
     private static ExpressionAnalysis analyzeExpressionsWithInputs(
@@ -1483,7 +1485,8 @@ public class ExpressionAnalyzer
             SqlParser sqlParser,
             Map<Integer, Type> types,
             Iterable<Expression> expressions,
-            List<Expression> parameters)
+            List<Expression> parameters,
+            WarningCollector warningCollector)
     {
         Field[] fields = new Field[types.size()];
         for (Entry<Integer, Type> entry : types.entrySet()) {
@@ -1491,7 +1494,7 @@ public class ExpressionAnalyzer
         }
         RelationType tupleDescriptor = new RelationType(fields);
 
-        return analyzeExpressions(session, metadata, sqlParser, tupleDescriptor, ImmutableMap.of(), expressions, parameters);
+        return analyzeExpressions(session, metadata, sqlParser, tupleDescriptor, ImmutableMap.of(), expressions, parameters, warningCollector);
     }
 
     public static ExpressionAnalysis analyzeExpressions(
@@ -1501,9 +1504,10 @@ public class ExpressionAnalyzer
             RelationType tupleDescriptor,
             Map<Symbol, Type> types,
             Iterable<? extends Expression> expressions,
-            List<Expression> parameters)
+            List<Expression> parameters,
+            WarningCollector warningCollector)
     {
-        return analyzeExpressions(session, metadata, sqlParser, tupleDescriptor, types, expressions, parameters, false);
+        return analyzeExpressions(session, metadata, sqlParser, tupleDescriptor, types, expressions, parameters, warningCollector, false);
     }
 
     private static ExpressionAnalysis analyzeExpressions(
@@ -1514,12 +1518,13 @@ public class ExpressionAnalyzer
             Map<Symbol, Type> types,
             Iterable<? extends Expression> expressions,
             List<Expression> parameters,
+            WarningCollector warningCollector,
             boolean isDescribe)
     {
         // expressions at this point can not have sub queries so deny all access checks
         // in the future, we will need a full access controller here to verify access to functions
         Analysis analysis = new Analysis(null, parameters, isDescribe);
-        ExpressionAnalyzer analyzer = create(analysis, session, metadata, sqlParser, new DenyAllAccessControl(), types);
+        ExpressionAnalyzer analyzer = create(analysis, session, metadata, sqlParser, new DenyAllAccessControl(), warningCollector, types);
         for (Expression expression : expressions) {
             analyzer.analyze(expression, Scope.builder().withRelationType(RelationId.anonymous(), tupleDescriptor).build());
         }
@@ -1544,9 +1549,10 @@ public class ExpressionAnalyzer
             SqlParser sqlParser,
             Scope scope,
             Analysis analysis,
+            WarningCollector warningCollector,
             Expression expression)
     {
-        ExpressionAnalyzer analyzer = create(analysis, session, metadata, sqlParser, accessControl, ImmutableMap.of());
+        ExpressionAnalyzer analyzer = create(analysis, session, metadata, sqlParser, accessControl, warningCollector, ImmutableMap.of());
         analyzer.analyze(expression, scope);
 
         Map<NodeRef<Expression>, Type> expressionTypes = analyzer.getExpressionTypes();
@@ -1579,9 +1585,10 @@ public class ExpressionAnalyzer
             Session session,
             Metadata metadata,
             SqlParser sqlParser,
-            AccessControl accessControl)
+            AccessControl accessControl,
+            WarningCollector warningCollector)
     {
-        return create(analysis, session, metadata, sqlParser, accessControl, ImmutableMap.of());
+        return create(analysis, session, metadata, sqlParser, accessControl, warningCollector, ImmutableMap.of());
     }
 
     public static ExpressionAnalyzer create(
@@ -1590,12 +1597,13 @@ public class ExpressionAnalyzer
             Metadata metadata,
             SqlParser sqlParser,
             AccessControl accessControl,
+            WarningCollector warningCollector,
             Map<Symbol, Type> types)
     {
         return new ExpressionAnalyzer(
                 metadata.getFunctionRegistry(),
                 metadata.getTypeManager(),
-                node -> new StatementAnalyzer(analysis, metadata, sqlParser, accessControl, session),
+                node -> new StatementAnalyzer(analysis, metadata, sqlParser, accessControl, warningCollector, session),
                 session,
                 types,
                 analysis.getParameters(),

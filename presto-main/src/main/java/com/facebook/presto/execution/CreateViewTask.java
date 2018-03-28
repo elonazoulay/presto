@@ -80,7 +80,7 @@ public class CreateViewTask
 
         String sql = getFormattedSql(statement.getQuery(), sqlParser, Optional.of(parameters));
 
-        Analysis analysis = analyzeStatement(statement, session, metadata, accessControl, parameters);
+        Analysis analysis = analyzeStatement(statement, session, metadata, accessControl, stateMachine.getWarningCollector(), parameters);
 
         List<ViewColumn> columns = analysis.getOutputDescriptor(statement.getQuery())
                 .getVisibleFields().stream()
@@ -94,9 +94,9 @@ public class CreateViewTask
         return immediateFuture(null);
     }
 
-    private Analysis analyzeStatement(Statement statement, Session session, Metadata metadata, AccessControl accessControl, List<Expression> parameters)
+    private Analysis analyzeStatement(Statement statement, Session session, Metadata metadata, AccessControl accessControl, WarningCollector warningCollector, List<Expression> parameters)
     {
-        Analyzer analyzer = new Analyzer(session, metadata, sqlParser, accessControl, Optional.empty(), parameters);
+        Analyzer analyzer = new Analyzer(session, metadata, sqlParser, accessControl, warningCollector, Optional.empty(), parameters);
         return analyzer.analyze(statement);
     }
 }

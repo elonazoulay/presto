@@ -19,6 +19,7 @@ import com.facebook.presto.client.IntervalYearMonth;
 import com.facebook.presto.client.QueryData;
 import com.facebook.presto.client.QueryStatusInfo;
 import com.facebook.presto.server.testing.TestingPrestoServer;
+import com.facebook.presto.spi.PrestoWarning;
 import com.facebook.presto.spi.type.ArrayType;
 import com.facebook.presto.spi.type.DecimalType;
 import com.facebook.presto.spi.type.MapType;
@@ -45,6 +46,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -108,6 +110,7 @@ public class TestingPrestoClient
 
         private final AtomicReference<Optional<String>> updateType = new AtomicReference<>(Optional.empty());
         private final AtomicReference<OptionalLong> updateCount = new AtomicReference<>(OptionalLong.empty());
+        private final Set<PrestoWarning> warnings = new HashSet<>();
 
         private final TimeZoneKey timeZoneKey;
 
@@ -143,6 +146,7 @@ public class TestingPrestoClient
                 checkState(types.get() != null, "data received without types");
                 rows.addAll(transform(data.getData(), dataToRow(timeZoneKey, types.get())));
             }
+            warnings.addAll(statusInfo.getWarnings());
         }
 
         @Override
@@ -155,7 +159,8 @@ public class TestingPrestoClient
                     setSessionProperties,
                     resetSessionProperties,
                     updateType.get(),
-                    updateCount.get());
+                    updateCount.get(),
+                    ImmutableList.copyOf(warnings));
         }
     }
 

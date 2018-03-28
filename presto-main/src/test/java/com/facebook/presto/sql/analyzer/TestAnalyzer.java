@@ -22,6 +22,7 @@ import com.facebook.presto.connector.system.SystemConnector;
 import com.facebook.presto.execution.QueryManagerConfig;
 import com.facebook.presto.execution.TaskManagerConfig;
 import com.facebook.presto.memory.MemoryManagerConfig;
+import com.facebook.presto.execution.WarningCollector;
 import com.facebook.presto.metadata.Catalog;
 import com.facebook.presto.metadata.CatalogManager;
 import com.facebook.presto.metadata.InMemoryNodeManager;
@@ -1588,6 +1589,7 @@ public class TestAnalyzer
                 metadata,
                 SQL_PARSER,
                 new AllowAllAccessControl(),
+                WarningCollector.NOOP,
                 Optional.empty(),
                 emptyList());
     }

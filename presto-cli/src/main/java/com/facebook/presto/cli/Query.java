@@ -166,6 +166,7 @@ public class Query
         }
 
         verify(client.isFinished());
+        renderWarnings(errorChannel);
         if (client.finalStatusInfo().getError() != null) {
             renderFailure(errorChannel);
             return false;
@@ -313,6 +314,16 @@ public class Query
             renderErrorLocation(client.getQuery(), error.getErrorLocation(), out);
         }
         out.println();
+    }
+
+    public void renderWarnings(PrintStream out)
+    {
+        QueryStatusInfo results = client.finalStatusInfo();
+        results.getWarnings().stream()
+                .forEach(warning -> out.printf("Warning %s for query %s", warning.getWarningCode(), warning.getMessage()));
+        if (!results.getWarnings().isEmpty()) {
+            out.println();
+        }
     }
 
     private static void renderErrorLocation(String query, ErrorLocation location, PrintStream out)
