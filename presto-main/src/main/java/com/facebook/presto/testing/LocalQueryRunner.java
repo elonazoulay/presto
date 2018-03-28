@@ -45,6 +45,7 @@ import com.facebook.presto.execution.DeallocateTask;
 import com.facebook.presto.execution.DropTableTask;
 import com.facebook.presto.execution.DropViewTask;
 import com.facebook.presto.execution.Lifespan;
+import com.facebook.presto.execution.NoOpWarningCollector;
 import com.facebook.presto.execution.NodeTaskMap;
 import com.facebook.presto.execution.PrepareTask;
 import com.facebook.presto.execution.QueryManagerConfig;
@@ -55,6 +56,7 @@ import com.facebook.presto.execution.RollbackTask;
 import com.facebook.presto.execution.SetSessionTask;
 import com.facebook.presto.execution.StartTransactionTask;
 import com.facebook.presto.execution.TaskManagerConfig;
+import com.facebook.presto.execution.WarningCollector;
 import com.facebook.presto.execution.resourceGroups.NoOpResourceGroupManager;
 import com.facebook.presto.execution.scheduler.LegacyNetworkTopology;
 import com.facebook.presto.execution.scheduler.NodeScheduler;
@@ -795,6 +797,15 @@ public class LocalQueryRunner
         return createPlan(session, sql, getPlanOptimizers(forceSingleNode), stage);
     }
 
+    public Plan createPlan(Session session, @Language("SQL") String sql, LogicalPlanner.Stage stage, boolean forceSingleNode, WarningCollector warningCollector)
+    {
+        Statement statement = unwrapExecuteStatement(sqlParser.createStatement(sql, createParsingOptions(session)), sqlParser, session);
+
+        assertFormattedSql(sqlParser, statement);
+
+        return createPlan(session, sql, getPlanOptimizers(forceSingleNode), stage, warningCollector);
+    }
+
     public List<PlanOptimizer> getPlanOptimizers(boolean forceSingleNode)
     {
         FeaturesConfig featuresConfig = new FeaturesConfig()
@@ -819,6 +830,11 @@ public class LocalQueryRunner
 
     public Plan createPlan(Session session, @Language("SQL") String sql, List<PlanOptimizer> optimizers, LogicalPlanner.Stage stage)
     {
+        return createPlan(session, sql, optimizers, stage, new NoOpWarningCollector());
+    }
+
+    public Plan createPlan(Session session, @Language("SQL") String sql, List<PlanOptimizer> optimizers, LogicalPlanner.Stage stage, WarningCollector warningCollector)
+    {
         Statement wrapped = sqlParser.createStatement(sql, createParsingOptions(session));
         Statement statement = unwrapExecuteStatement(wrapped, sqlParser, session);
 
@@ -841,7 +857,7 @@ public class LocalQueryRunner
                 statsCalculator,
                 costCalculator,
                 dataDefinitionTask);
-        Analyzer analyzer = new Analyzer(session, metadata, sqlParser, accessControl, Optional.of(queryExplainer), parameters);
+        Analyzer analyzer = new Analyzer(session, metadata, sqlParser, accessControl, warningCollector, Optional.of(queryExplainer), parameters);
 
         LogicalPlanner logicalPlanner = new LogicalPlanner(session, optimizers, new PlanSanityChecker(true), idAllocator, metadata, sqlParser);
 

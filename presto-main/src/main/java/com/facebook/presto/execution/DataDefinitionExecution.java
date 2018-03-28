@@ -55,6 +55,7 @@ public class DataDefinitionExecution<T extends Statement>
     private final AccessControl accessControl;
     private final QueryStateMachine stateMachine;
     private final List<Expression> parameters;
+    private final WarningCollector warningCollector;
 
     private DataDefinitionExecution(
             DataDefinitionTask<T> task,
@@ -62,6 +63,7 @@ public class DataDefinitionExecution<T extends Statement>
             TransactionManager transactionManager,
             Metadata metadata,
             AccessControl accessControl,
+            WarningCollector warningCollector,
             QueryStateMachine stateMachine,
             List<Expression> parameters)
     {
@@ -70,6 +72,7 @@ public class DataDefinitionExecution<T extends Statement>
         this.transactionManager = requireNonNull(transactionManager, "transactionManager is null");
         this.metadata = requireNonNull(metadata, "metadata is null");
         this.accessControl = requireNonNull(accessControl, "accessControl is null");
+        this.warningCollector = requireNonNull(warningCollector, "warningCollector is null");
         this.stateMachine = requireNonNull(stateMachine, "stateMachine is null");
         this.parameters = parameters;
     }
@@ -281,16 +284,17 @@ public class DataDefinitionExecution<T extends Statement>
                 String query,
                 Session session,
                 Statement statement,
-                List<Expression> parameters)
+                List<Expression> parameters,
+                WarningCollector warningCollector)
         {
             URI self = locationFactory.createQueryLocation(queryId);
 
             DataDefinitionTask<Statement> task = getTask(statement);
             checkArgument(task != null, "no task for statement: %s", statement.getClass().getSimpleName());
 
-            QueryStateMachine stateMachine = QueryStateMachine.begin(queryId, query, session, self, task.isTransactionControl(), transactionManager, accessControl, executor, metadata);
+            QueryStateMachine stateMachine = QueryStateMachine.begin(queryId, query, session, self, task.isTransactionControl(), transactionManager, accessControl, warningCollector, executor, metadata);
             stateMachine.setUpdateType(task.getName());
-            return new DataDefinitionExecution<>(task, statement, transactionManager, metadata, accessControl, stateMachine, parameters);
+            return new DataDefinitionExecution<>(task, statement, transactionManager, metadata, accessControl, warningCollector, stateMachine, parameters);
         }
 
         @SuppressWarnings("unchecked")

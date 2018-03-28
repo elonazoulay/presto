@@ -166,6 +166,7 @@ public class MockQueryExecution
                 Optional.empty(),
                 null,
                 null,
+                ImmutableList.of(),
                 ImmutableSet.of(),
                 Optional.empty(),
                 state.isDone(),

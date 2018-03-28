@@ -15,6 +15,7 @@ package com.facebook.presto.sql.rewrite;
 
 import com.facebook.presto.Session;
 import com.facebook.presto.connector.ConnectorId;
+import com.facebook.presto.execution.WarningCollector;
 import com.facebook.presto.metadata.FunctionKind;
 import com.facebook.presto.metadata.Metadata;
 import com.facebook.presto.metadata.QualifiedObjectName;
@@ -132,9 +133,10 @@ final class ShowQueriesRewrite
             Optional<QueryExplainer> queryExplainer,
             Statement node,
             List<Expression> parameters,
-            AccessControl accessControl)
+            AccessControl accessControl,
+            WarningCollector warningCollector)
     {
-        return (Statement) new Visitor(metadata, parser, session, parameters, accessControl, queryExplainer).process(node, null);
+        return (Statement) new Visitor(metadata, parser, session, parameters, accessControl, queryExplainer, warningCollector).process(node, null);
     }
 
     private static class Visitor
@@ -143,11 +145,19 @@ final class ShowQueriesRewrite
         private final Metadata metadata;
         private final Session session;
         private final SqlParser sqlParser;
-        List<Expression> parameters;
         private final AccessControl accessControl;
+        private final WarningCollector warningCollector;
+        List<Expression> parameters;
         private Optional<QueryExplainer> queryExplainer;
 
-        public Visitor(Metadata metadata, SqlParser sqlParser, Session session, List<Expression> parameters, AccessControl accessControl, Optional<QueryExplainer> queryExplainer)
+        public Visitor(
+                Metadata metadata,
+                SqlParser sqlParser,
+                Session session,
+                List<Expression> parameters,
+                AccessControl accessControl,
+                Optional<QueryExplainer> queryExplainer,
+                WarningCollector warningCollector)
         {
             this.metadata = requireNonNull(metadata, "metadata is null");
             this.sqlParser = requireNonNull(sqlParser, "sqlParser is null");
@@ -155,6 +165,7 @@ final class ShowQueriesRewrite
             this.parameters = requireNonNull(parameters, "parameters is null");
             this.accessControl = requireNonNull(accessControl, "accessControl is null");
             this.queryExplainer = requireNonNull(queryExplainer, "queryExplainer is null");
+            this.warningCollector = requireNonNull(warningCollector, "warningCollector is null");
         }
 
         @Override

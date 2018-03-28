@@ -15,6 +15,7 @@ package com.facebook.presto.sql.analyzer;
 
 import com.facebook.presto.Session;
 import com.facebook.presto.SystemSessionProperties;
+import com.facebook.presto.execution.WarningCollector;
 import com.facebook.presto.metadata.FunctionKind;
 import com.facebook.presto.metadata.Metadata;
 import com.facebook.presto.metadata.OperatorNotFoundException;
@@ -214,12 +215,14 @@ class StatementAnalyzer
     private final Session session;
     private final SqlParser sqlParser;
     private final AccessControl accessControl;
+    private final WarningCollector warningCollector;
 
     public StatementAnalyzer(
             Analysis analysis,
             Metadata metadata,
             SqlParser sqlParser,
             AccessControl accessControl,
+            WarningCollector warningCollector,
             Session session)
     {
         this.analysis = requireNonNull(analysis, "analysis is null");
@@ -227,6 +230,7 @@ class StatementAnalyzer
         this.sqlParser = requireNonNull(sqlParser, "sqlParser is null");
         this.accessControl = requireNonNull(accessControl, "accessControl is null");
         this.session = requireNonNull(session, "session is null");
+        this.warningCollector = requireNonNull(warningCollector, "warningCollector is null");
     }
 
     public Scope analyze(Node node, Scope outerQueryScope)
@@ -384,6 +388,7 @@ class StatementAnalyzer
                     metadata,
                     sqlParser,
                     new AllowAllAccessControl(),
+                    warningCollector,
                     session);
 
             Scope tableScope = analyzer.analyze(table, scope);
@@ -452,7 +457,13 @@ class StatementAnalyzer
             QualifiedObjectName viewName = createQualifiedObjectName(session, node, node.getName());
 
             // analyze the query that creates the view
-            StatementAnalyzer analyzer = new StatementAnalyzer(analysis, metadata, sqlParser, accessControl, session);
+            StatementAnalyzer analyzer = new StatementAnalyzer(
+                    analysis,
+                    metadata,
+                    sqlParser,
+                    accessControl,
+                    warningCollector,
+                    session);
 
             Scope queryScope = analyzer.analyze(node.getQuery(), scope);
 
@@ -714,7 +725,7 @@ class StatementAnalyzer
         @Override
         protected Scope visitLateral(Lateral node, Optional<Scope> scope)
         {
-            StatementAnalyzer analyzer = new StatementAnalyzer(analysis, metadata, sqlParser, accessControl, session);
+            StatementAnalyzer analyzer = new StatementAnalyzer(analysis, metadata, sqlParser, accessControl, warningCollector, session);
             Scope queryScope = analyzer.analyze(node.getQuery(), scope);
             return createAndAssignScope(node, scope, queryScope.getRelationType());
         }
@@ -924,7 +935,7 @@ class StatementAnalyzer
         @Override
         protected Scope visitTableSubquery(TableSubquery node, Optional<Scope> scope)
         {
-            StatementAnalyzer analyzer = new StatementAnalyzer(analysis, metadata, sqlParser, accessControl, session);
+            StatementAnalyzer analyzer = new StatementAnalyzer(analysis, metadata, sqlParser, accessControl, warningCollector, session);
             Scope queryScope = analyzer.analyze(node.getQuery(), scope);
             return createAndAssignScope(node, scope, queryScope.getRelationType());
         }
@@ -1477,6 +1488,7 @@ class StatementAnalyzer
                     Expression orderByExpression = null;
                     if (expression instanceof Identifier) {
                         // if this is a simple name reference, try to resolve against output columns
+                        // this conforms with standard (non-legacy) behavior
 
                         QualifiedName name = QualifiedName.of(((Identifier) expression).getValue());
                         Collection<Expression> expressions = byAlias.get(name);
@@ -1512,6 +1524,7 @@ class StatementAnalyzer
                     }
 
                     ExpressionAnalysis expressionAnalysis = analyzeExpression(orderByExpression, sourceScope);
+
                     analysis.recordSubqueries(node, expressionAnalysis);
 
                     Type type = expressionAnalysis.getType(orderByExpression);
@@ -1966,7 +1979,7 @@ class StatementAnalyzer
                         .setSystemProperty(LEGACY_ORDER_BY, session.getSystemProperty(LEGACY_ORDER_BY, Boolean.class).toString())
                         .build();
 
-                StatementAnalyzer analyzer = new StatementAnalyzer(analysis, metadata, sqlParser, viewAccessControl, viewSession);
+                StatementAnalyzer analyzer = new StatementAnalyzer(analysis, metadata, sqlParser, viewAccessControl, warningCollector, viewSession);
                 Scope queryScope = analyzer.analyze(query, Scope.create());
                 return queryScope.getRelationType().withAlias(name.getObjectName(), null);
             }
@@ -2014,6 +2027,7 @@ class StatementAnalyzer
                     sqlParser,
                     scope,
                     analysis,
+                    warningCollector,
                     expression);
         }
 
@@ -2131,6 +2145,7 @@ class StatementAnalyzer
                         accessControl, sqlParser,
                         orderByScope,
                         analysis,
+                        warningCollector,
                         expression);
                 analysis.recordSubqueries(node, expressionAnalysis);
 

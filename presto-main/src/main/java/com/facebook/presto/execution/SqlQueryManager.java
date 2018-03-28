@@ -414,7 +414,7 @@ public class SqlQueryManager
                     throw new PrestoException(NOT_SUPPORTED, "EXPLAIN ANALYZE doesn't support statement type: " + innerStatement.getClass().getSimpleName());
                 }
             }
-            queryExecution = queryExecutionFactory.createQueryExecution(queryId, query, session, statement, parameters);
+            queryExecution = queryExecutionFactory.createQueryExecution(queryId, query, session, statement, parameters, new DedupingWarningCollector(queryId));
         }
         catch (ParsingException | PrestoException | SemanticException e) {
             // This is intentionally not a method, since after the state change listener is registered
@@ -435,6 +435,7 @@ public class SqlQueryManager
                     session,
                     self,
                     transactionManager,
+                    new NoOpWarningCollector(),
                     queryExecutor,
                     metadata,
                     e);

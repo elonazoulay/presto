@@ -123,7 +123,18 @@ public class TestSetSessionTask
 
     private void testSetSessionWithParameters(Expression expression, String expectedValue, List<Expression> parameters)
     {
-        QueryStateMachine stateMachine = QueryStateMachine.begin(new QueryId("query"), "set foo.bar = 'baz'", TEST_SESSION, URI.create("fake://uri"), false, transactionManager, accessControl, executor, metadata);
+        QueryStateMachine stateMachine = QueryStateMachine.begin(
+                new QueryId("query"),
+                "set foo.bar = 'baz'",
+                TEST_SESSION,
+                URI.create("fake://uri"),
+                false,
+                transactionManager,
+                accessControl,
+                new NoOpWarningCollector(),
+                executor,
+                metadata);
+
         getFutureValue(new SetSessionTask().execute(new SetSession(QualifiedName.of(CATALOG_NAME, "bar"), expression), transactionManager, metadata, accessControl, stateMachine, parameters));
 
         Map<String, String> sessionProperties = stateMachine.getSetSessionProperties();

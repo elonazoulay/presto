@@ -149,7 +149,15 @@ class Query
             ScheduledExecutorService timeoutExecutor,
             BlockEncodingSerde blockEncodingSerde)
     {
-        Query result = new Query(sessionContext, query, queryManager, sessionPropertyManager, exchangeClient, dataProcessorExecutor, timeoutExecutor, blockEncodingSerde);
+        Query result = new Query(
+                sessionContext,
+                query,
+                queryManager,
+                sessionPropertyManager,
+                exchangeClient,
+                dataProcessorExecutor,
+                timeoutExecutor,
+                blockEncodingSerde);
 
         result.queryManager.addOutputInfoListener(result.getQueryId(), result::setQueryOutputInfo);
 
@@ -404,6 +412,7 @@ class Query
                 data,
                 toStatementStats(queryInfo),
                 toQueryError(queryInfo),
+                queryInfo.getWarnings(),
                 queryInfo.getUpdateType(),
                 updateCount);
 

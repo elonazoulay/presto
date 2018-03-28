@@ -108,6 +108,7 @@ public class TestResetSessionTask
                 false,
                 transactionManager,
                 accessControl,
+                new NoOpWarningCollector(),
                 executor,
                 metadata);
 
