@@ -103,7 +103,18 @@ public class TestPrepareTask
     {
         TransactionManager transactionManager = createTestTransactionManager();
         AccessControl accessControl = new AccessControlManager(transactionManager);
-        QueryStateMachine stateMachine = QueryStateMachine.begin(new QueryId("query"), sqlString, session, URI.create("fake://uri"), false, transactionManager, accessControl, executor, metadata);
+        QueryStateMachine stateMachine = QueryStateMachine.begin(
+                new QueryId("query"),
+                sqlString,
+                session,
+                URI.create("fake://uri"),
+                false,
+                transactionManager,
+                accessControl,
+                WarningCollector.NOOP,
+                executor,
+                metadata);
+
         Prepare prepare = new Prepare(identifier(statementName), statement);
         new PrepareTask(new SqlParser()).execute(prepare, transactionManager, metadata, new AllowAllAccessControl(), stateMachine, emptyList());
         return stateMachine.getAddedPreparedStatements();

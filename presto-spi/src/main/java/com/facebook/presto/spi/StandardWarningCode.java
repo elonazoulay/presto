@@ -11,32 +11,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.client;
+package com.facebook.presto.spi;
 
-import com.facebook.presto.spi.PrestoWarning;
-
-import java.net.URI;
-import java.util.List;
-
-public interface QueryStatusInfo
+public enum StandardWarningCode
+        implements WarningCodeSupplier
 {
-    String getId();
+    /**/;
 
-    URI getInfoUri();
+    // Warning codes can start at 0x0003_0000
+    // See https://github.com/prestodb/presto/wiki/Error-Codes
 
-    URI getPartialCancelUri();
+    private final WarningCode warningCode;
 
-    URI getNextUri();
+    StandardWarningCode(int code)
+    {
+        this.warningCode = new WarningCode(code, name());
+    }
 
-    List<Column> getColumns();
-
-    StatementStats getStats();
-
-    QueryError getError();
-
-    String getUpdateType();
-
-    Long getUpdateCount();
-
-    List<PrestoWarning> getWarnings();
+    @Override
+    public WarningCode toWarningCode()
+    {
+        return warningCode;
+    }
 }

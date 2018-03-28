@@ -94,6 +94,11 @@ public class ExpressionAnalysis
         return columnReferences.containsKey(NodeRef.of(node));
     }
 
+    public Map<NodeRef<Expression>, FieldId> getColumnReferences()
+    {
+        return columnReferences;
+    }
+
     public Set<NodeRef<InPredicate>> getSubqueryInPredicates()
     {
         return subqueryInPredicates;

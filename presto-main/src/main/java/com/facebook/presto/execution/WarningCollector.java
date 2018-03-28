@@ -11,32 +11,30 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.client;
+package com.facebook.presto.execution;
 
 import com.facebook.presto.spi.PrestoWarning;
+import com.google.common.collect.ImmutableList;
 
-import java.net.URI;
 import java.util.List;
 
-public interface QueryStatusInfo
+public interface WarningCollector
 {
-    String getId();
+    WarningCollector NOOP = new WarningCollector()
+    {
+        @Override
+        public void add(PrestoWarning warning)
+        {
+        }
 
-    URI getInfoUri();
+        @Override
+        public List<PrestoWarning> getWarnings()
+        {
+            return ImmutableList.of();
+        }
+    };
 
-    URI getPartialCancelUri();
-
-    URI getNextUri();
-
-    List<Column> getColumns();
-
-    StatementStats getStats();
-
-    QueryError getError();
-
-    String getUpdateType();
-
-    Long getUpdateCount();
+    void add(PrestoWarning warning);
 
     List<PrestoWarning> getWarnings();
 }

@@ -11,32 +11,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.client;
+package com.facebook.presto.spi;
 
-import com.facebook.presto.spi.PrestoWarning;
-
-import java.net.URI;
-import java.util.List;
-
-public interface QueryStatusInfo
+public interface WarningCodeSupplier
 {
-    String getId();
-
-    URI getInfoUri();
-
-    URI getPartialCancelUri();
-
-    URI getNextUri();
-
-    List<Column> getColumns();
-
-    StatementStats getStats();
-
-    QueryError getError();
-
-    String getUpdateType();
-
-    Long getUpdateCount();
-
-    List<PrestoWarning> getWarnings();
+    WarningCode toWarningCode();
 }
