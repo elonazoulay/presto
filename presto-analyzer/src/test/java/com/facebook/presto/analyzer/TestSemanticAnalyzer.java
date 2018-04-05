@@ -59,7 +59,7 @@ public class TestSemanticAnalyzer
         try {
             tmpDir = Files.createTempDirectory("tmp");
             config.setDirectory(tmpDir.toString());
-            AnalyzeCommandRunner command = new AnalyzeCommandRunner(config);
+            LegacyOrderByRunner command = new LegacyOrderByRunner(config);
             command.run();
             int i = 1 + 2;
         }
@@ -74,15 +74,15 @@ public class TestSemanticAnalyzer
     public void testSql()
     {
         LegacyOrderByAnalyzer analyzer = new LegacyOrderByAnalyzer(new SemanticAnalyzerConfig());
-        assertFalse(analyzer.isCandidate(getTestDescriptor("select ln(a) as a from t order by t.a")));
-        assertTrue(analyzer.isCandidate(getTestDescriptor("select ln(a) as a from t order by ln(a)")));
-        assertFalse(analyzer.isCandidate(
+        assertFalse(analyzer.test(getTestDescriptor("select ln(a) as a from t order by t.a")));
+        assertTrue(analyzer.test(getTestDescriptor("select ln(a) as a from t order by ln(a)")));
+        assertFalse(analyzer.test(
                 getTestDescriptor("select a, sum(1) as count from t group by a order by count")));
-        assertFalse(analyzer.isCandidate(
+        assertFalse(analyzer.test(
                 getTestDescriptor("select a, sum(t.count) as count from t group by a order by count")));
-        assertTrue(analyzer.isCandidate(
+        assertTrue(analyzer.test(
                 getTestDescriptor("select a, sum(-count) as count from t group by a order by sum(-count)")));
-        assertTrue(analyzer.isCandidate(
+        assertTrue(analyzer.test(
                 getTestDescriptor("select a, sum(-count) as count from t group by a order by sum(count)")));
     }
 
@@ -92,20 +92,20 @@ public class TestSemanticAnalyzer
     {
         SemanticAnalyzerConfig config = new SemanticAnalyzerConfig();
         LegacyOrderByAnalyzer analyzer = new LegacyOrderByAnalyzer(config);
-        assertTrue(analyzer.isCandidate(getDescriptorFromResource("query5_groupby_candidate.sql")));
-        assertTrue(analyzer.isCandidate(getDescriptorFromResource("query1_candidate.sql")));
-        assertTrue(analyzer.isCandidate(getDescriptorFromResource("query9_candidate.sql")));
-        assertFalse(analyzer.isCandidate(getDescriptorFromResource("query8_cornercase_notcandidate.sql")));
-        assertFalse(analyzer.isCandidate(getDescriptorFromResource("query7_notcandidate.sql")));
-        assertFalse(analyzer.isCandidate(getDescriptorFromResource("query4_groupby_notcandidate.sql")));
-        assertFalse(analyzer.isCandidate(getDescriptorFromResource("query6_groupby_notcandidate.sql")));
-        assertTrue(analyzer.isCandidate(getDescriptorFromResource("query2_candidate.sql")));
-        assertTrue(analyzer.isCandidate(getDescriptorFromResource("query3_candidate.sql")));
-        assertFalse(analyzer.isCandidate(getDescriptorFromResource("query10_if_nocandidate.sql")));
-        assertTrue(analyzer.isCandidate(getDescriptorFromResource("query11_candidate.sql")));
-        assertFalse(analyzer.isCandidate(getDescriptorFromResource("query12_notcandidate.sql")));
-        assertTrue(analyzer.isCandidate(getDescriptorFromResource("query13_candidate.sql")));
-        assertTrue(analyzer.isCandidate(getDescriptorFromResource("query14_candidate.sql")));
+        assertTrue(analyzer.test(getDescriptorFromResource("query5_groupby_candidate.sql")));
+        assertTrue(analyzer.test(getDescriptorFromResource("query1_candidate.sql")));
+        assertTrue(analyzer.test(getDescriptorFromResource("query9_candidate.sql")));
+        assertFalse(analyzer.test(getDescriptorFromResource("query8_cornercase_notcandidate.sql")));
+        assertFalse(analyzer.test(getDescriptorFromResource("query7_notcandidate.sql")));
+        assertFalse(analyzer.test(getDescriptorFromResource("query4_groupby_notcandidate.sql")));
+        assertFalse(analyzer.test(getDescriptorFromResource("query6_groupby_notcandidate.sql")));
+        assertTrue(analyzer.test(getDescriptorFromResource("query2_candidate.sql")));
+        assertTrue(analyzer.test(getDescriptorFromResource("query3_candidate.sql")));
+        assertFalse(analyzer.test(getDescriptorFromResource("query10_if_nocandidate.sql")));
+        assertTrue(analyzer.test(getDescriptorFromResource("query11_candidate.sql")));
+        assertFalse(analyzer.test(getDescriptorFromResource("query12_notcandidate.sql")));
+        assertTrue(analyzer.test(getDescriptorFromResource("query13_candidate.sql")));
+        assertTrue(analyzer.test(getDescriptorFromResource("query14_candidate.sql")));
     }
 
     private static QueryDescriptor getDescriptorFromResource(String resource)

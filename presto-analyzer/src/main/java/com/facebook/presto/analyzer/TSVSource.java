@@ -21,6 +21,7 @@ import javax.inject.Provider;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -32,12 +33,12 @@ public class TSVSource
 {
     private final TSVReader tsvReader;
     private List<String> line;
-    private final SemanticAnalyzerConfig config;
+
     public TSVSource(InputStream inputStream, SemanticAnalyzerConfig config)
             throws IOException
     {
         requireNonNull(inputStream, "inputStreamSupplier is null");
-        this.config = requireNonNull(config, "config is null");
+        requireNonNull(config, "config is null");
         tsvReader = new TSVReader(
                 inputStream,
                 config.getDelimiter(),
@@ -121,7 +122,7 @@ public class TSVSource
         RESOURCE
     }
 
-    public static Provider<InputStream> create(SemanticAnalyzerConfig config)
+    public static Provider<InputStream> getProvider(SemanticAnalyzerConfig config)
     {
         requireNonNull(config, "config is null");
         SourceType sourceTypeValue = SourceType.valueOf(config.getSourceType().toUpperCase());
@@ -132,6 +133,16 @@ public class TSVSource
                 return new ResourceProvider(config);
             default:
                 throw new IllegalArgumentException();
+        }
+    }
+
+    public static TSVSource create(SemanticAnalyzerConfig config)
+    {
+        try {
+            return new TSVSource(getProvider(config).get(), config);
+        }
+        catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 }

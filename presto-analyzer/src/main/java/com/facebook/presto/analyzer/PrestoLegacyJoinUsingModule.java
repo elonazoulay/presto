@@ -19,13 +19,15 @@ import io.airlift.configuration.AbstractConfigurationAwareModule;
 
 import static io.airlift.configuration.ConfigBinder.configBinder;
 
-public class PrestoLegacyOrderByAnalyzerModule
+public class PrestoLegacyJoinUsingModule
         extends AbstractConfigurationAwareModule
 {
     @Override
     protected void setup(Binder binder)
     {
-        configBinder(binder).bindConfig(SemanticAnalyzerConfig.class, "legacy-orderby-analyzer");
-        binder.bind(LegacyOrderByRunner.class).in(Scopes.SINGLETON);
+        configBinder(binder).bindConfig(SemanticAnalyzerConfig.class, "legacy-join-using-analyzer");
+        binder.bind(SemanticAnalyzer.class).to(LegacyJoinUsingAnalyzer.class).in(Scopes.SINGLETON);
+        binder.bind(QueryDescriptorConsumer.class).to(LegacyJoinUsingQueryDescriptorFileWriter.class).in(Scopes.SINGLETON);
+        binder.bind(SemanticAnalyzerRunner.class).in(Scopes.SINGLETON);
     }
 }

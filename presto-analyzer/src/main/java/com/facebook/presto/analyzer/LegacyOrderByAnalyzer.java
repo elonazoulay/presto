@@ -48,22 +48,22 @@ import java.util.Set;
 import static java.util.Objects.requireNonNull;
 
 public class LegacyOrderByAnalyzer
+        implements SemanticAnalyzer
 {
     private static final Logger log = Logger.get(LegacyOrderByAnalyzer.class);
     private final SqlParser sqlParser;
     private final ParsingOptions parsingOptions;
-    private final SemanticAnalyzerConfig config;
 
     public LegacyOrderByAnalyzer(SemanticAnalyzerConfig config)
     {
-        this.config = requireNonNull(config, "config is null");
         SqlParserOptions parserOptions = new SqlParserOptions();
         parserOptions.allowIdentifierSymbol(IdentifierSymbol.COLON, IdentifierSymbol.AT_SIGN);
         this.sqlParser = new SqlParser(parserOptions);
         this.parsingOptions = new ParsingOptions(config.getParsingOptions());
     }
 
-    public boolean isCandidate(QueryDescriptor queryDescriptor)
+    @Override
+    public boolean test(QueryDescriptor queryDescriptor)
     {
         requireNonNull(queryDescriptor, "queryDescriptor is null");
         Statement statement;
@@ -250,6 +250,6 @@ public class LegacyOrderByAnalyzer
                 //"select t.z/t.y a, b from t order by t.z, a, t.z, t.z/t.y, ln(a) + ln(ln(a/t.z))";
         SemanticAnalyzerConfig config = new SemanticAnalyzerConfig();
         LegacyOrderByAnalyzer analyzer = new LegacyOrderByAnalyzer(config);
-        System.out.println(analyzer.isCandidate(new QueryDescriptor("test", "test", "test", "test", "test_id", sql)));
+        System.out.println(analyzer.test(new QueryDescriptor("test", "test", "test", "test", "test_id", sql)));
     }
 }

@@ -26,7 +26,7 @@ import static com.google.common.io.MoreFiles.deleteRecursively;
 import static org.testng.Assert.assertEquals;
 
 @Test(singleThreaded = true)
-public class TestQueryDescriptorFileWriter
+public class TestLegacyOrderByFileWriter
 {
     private Path tmpDir;
 
@@ -51,7 +51,7 @@ public class TestQueryDescriptorFileWriter
     {
         SemanticAnalyzerConfig config = getConfig();
         config.setDirectory(tmpDir.toString());
-        QueryDescriptorFileWriter fileWriter = new QueryDescriptorFileWriter(config);
+        LegacyOrderByFileWriter fileWriter = new LegacyOrderByFileWriter(config);
         QueryDescriptor descriptor = new QueryDescriptor("test", "test", "test", "test",
                 "unidash:1857098507844978:argus:450931", "select a order by a");
         assertEquals(fileWriter.getMatchedSource(descriptor), "450931");
@@ -62,7 +62,7 @@ public class TestQueryDescriptorFileWriter
     {
         SemanticAnalyzerConfig config = getConfig();
         config.setDirectory(tmpDir.toString());
-        QueryDescriptorFileWriter fileWriter = new QueryDescriptorFileWriter(config);
+        LegacyOrderByFileWriter fileWriter = new LegacyOrderByFileWriter(config);
         QueryDescriptor descriptor = new QueryDescriptor("de1prod", "raptor", "test", "test",
                 "unidash:1857098507844978:argus:450931", "select a order by a");
         assertEquals(fileWriter.getEnvironmentTier(descriptor), "de1-prod");

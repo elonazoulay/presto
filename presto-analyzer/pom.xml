@@ -13,7 +13,8 @@
 
     <properties>
         <air.main.basedir>${project.parent.basedir}</air.main.basedir>
-        <main-class>com.facebook.presto.analyzer.PrestoLegacyOrderByAnalyzer</main-class>
+        <!-- main-class>com.facebook.presto.analyzer.PrestoLegacyOrderByAnalyzer</main-class -->
+        <main-class>com.facebook.presto.analyzer.PrestoLegacyJoinUsingAnalyzer</main-class>
     </properties>
 
     <dependencies>
@@ -57,6 +58,16 @@
             <artifactId>guava</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>com.facebook.presto</groupId>
+            <artifactId>presto-spi</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.facebook.presto</groupId>
+            <artifactId>presto-main</artifactId>
+        </dependency>
+
         <!-- for testing -->
         <dependency>
             <groupId>org.testng</groupId>
@@ -67,6 +78,12 @@
         <dependency>
             <groupId>io.airlift</groupId>
             <artifactId>testing</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.facebook.presto</groupId>
+            <artifactId>presto-tests</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

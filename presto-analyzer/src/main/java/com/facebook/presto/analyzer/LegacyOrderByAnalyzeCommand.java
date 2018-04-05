@@ -22,7 +22,7 @@ import io.airlift.bootstrap.LifeCycleManager;
 import static com.google.common.base.Throwables.throwIfUnchecked;
 
 @Command(name = "semantic-analyzer", description = "Legacy order by analyzer")
-public class AnalyzeCommand
+public class LegacyOrderByAnalyzeCommand
         implements Runnable
 {
     @Arguments(description = "Config filename")
@@ -48,7 +48,7 @@ public class AnalyzeCommand
         }
 
         try {
-            injector.getInstance(AnalyzeCommandRunner.class).run();
+            injector.getInstance(LegacyOrderByRunner.class).run();
             System.exit(0);
         }
         catch (Exception e) {
