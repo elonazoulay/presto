@@ -19,25 +19,27 @@ import javax.inject.Provider;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 
-public class AnalyzeCommandRunner
+public class LegacyOrderByRunner
         implements Runnable
 {
     private final Provider<InputStream> inputStreamProvider;
     private final SemanticAnalyzerConfig config;
 
     @Inject
-    public AnalyzeCommandRunner(SemanticAnalyzerConfig config)
+    public LegacyOrderByRunner(SemanticAnalyzerConfig config)
     {
         this.config = requireNonNull(config, "config is null");
-        this.inputStreamProvider = TSVSource.create(config);
+        this.inputStreamProvider = TSVSource.getProvider(config);
     }
 
+    @Override
     public void run()
     {
         try {
@@ -49,18 +51,18 @@ public class AnalyzeCommandRunner
             else if (!Files.isDirectory(directory)) {
                 throw new RuntimeException(format("Invalid directory %s", directory));
             }
-            QueryDescriptorFileWriter fileWriter = new QueryDescriptorFileWriter(config);
+            LegacyOrderByFileWriter fileWriter = new LegacyOrderByFileWriter(config);
             TSVSource source = new TSVSource(inputStreamProvider.get(), config);
             while (source.hasNext()) {
                 QueryDescriptor queryDescriptor = source.next();
-                if (analyzer.isCandidate(queryDescriptor)) {
-                    fileWriter.writeFile(queryDescriptor, false);
-                    fileWriter.writeFile(queryDescriptor, true);
+                if (analyzer.test(queryDescriptor)) {
+                    fileWriter.accept(queryDescriptor, false);
+                    fileWriter.accept(queryDescriptor, true);
                 }
             }
         }
         catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException(e);
         }
     }
 }

@@ -13,17 +13,9 @@
  */
 package com.facebook.presto.analyzer;
 
-import static io.airlift.airline.SingleCommand.singleCommand;
+import java.util.function.Predicate;
 
-public class PrestoLegacyOrderByAnalyzer
+public interface SemanticAnalyzer
+        extends Predicate<QueryDescriptor>
 {
-    private PrestoLegacyOrderByAnalyzer()
-    { }
-
-    public static void main(String[] args)
-    {
-        LegacyOrderByAnalyzeCommand command = singleCommand(LegacyOrderByAnalyzeCommand.class).parse(args);
-        command.run();
-        System.exit(0);
-    }
 }

@@ -13,17 +13,28 @@
  */
 package com.facebook.presto.analyzer;
 
-import static io.airlift.airline.SingleCommand.singleCommand;
+import javax.inject.Inject;
 
-public class PrestoLegacyOrderByAnalyzer
+import static java.lang.String.format;
+
+public class LegacyJoinUsingQueryDescriptorFileWriter
+        extends AbstractQueryDescriptorFileWriter
 {
-    private PrestoLegacyOrderByAnalyzer()
-    { }
-
-    public static void main(String[] args)
+    @Inject
+    public LegacyJoinUsingQueryDescriptorFileWriter(SemanticAnalyzerConfig config)
     {
-        LegacyOrderByAnalyzeCommand command = singleCommand(LegacyOrderByAnalyzeCommand.class).parse(args);
-        command.run();
-        System.exit(0);
+        super(config);
+    }
+
+    @Override
+    protected String getSessionCommand(boolean legacy)
+    {
+        return format("SET SESSION legacy_join_using = %s;\n", legacy);
+    }
+
+    @Override
+    protected String getFileSuffix(boolean legacy)
+    {
+        return legacy ? "old" : "new";
     }
 }

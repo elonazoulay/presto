@@ -13,10 +13,9 @@
  */
 package com.facebook.presto.analyzer;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.regex.Matcher;
@@ -26,13 +25,14 @@ import static com.google.common.base.Throwables.throwIfUnchecked;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 
-public final class QueryDescriptorFileWriter
+public abstract class AbstractQueryDescriptorFileWriter
+        implements QueryDescriptorConsumer
 {
     private final SemanticAnalyzerConfig config;
     private static final Pattern TIER_PATTERN = Pattern.compile("^(de\\d+)(.*)");
     private static final String COMMENT_FORMAT = "-- %s\n";
 
-    public QueryDescriptorFileWriter(SemanticAnalyzerConfig config)
+    public AbstractQueryDescriptorFileWriter(SemanticAnalyzerConfig config)
     {
         this.config = requireNonNull(config, "config is null");
         try {
@@ -50,33 +50,40 @@ public final class QueryDescriptorFileWriter
         }
     }
 
-    public void writeFile(QueryDescriptor descriptor, boolean legacyOrderBy)
-            throws IOException
+    // Ex. SET SESSION legacy_join_using = <legacy>
+    protected abstract String getSessionCommand(boolean legacy);
+
+    protected abstract String getFileSuffix(boolean legacy);
+
+    @Override
+    public void accept(QueryDescriptor descriptor, Boolean legacy)
     {
+        requireNonNull(legacy, "legacy is null");
         Path directory = config.getDirectory();
-        try (BufferedWriter writer = Files.newBufferedWriter(directory.resolve(getFileName(descriptor, legacyOrderBy)))) {
-            writer.write(getText(descriptor, legacyOrderBy));
+        try (BufferedWriter writer = Files.newBufferedWriter(directory.resolve(getFileName(descriptor, legacy)))) {
+            writer.write(getText(descriptor, legacy));
+        }
+        catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
-    private String getText(QueryDescriptor descriptor, boolean legacyOrderBy)
+    protected String getText(QueryDescriptor descriptor, boolean legacy)
     {
-        String setSession = legacyOrderBy ? "" : "SET SESSION legacy_order_by = false;\n";
         return new StringBuilder()
                 .append(format(COMMENT_FORMAT, getEnvironmentTier(descriptor)))
                 .append(format(COMMENT_FORMAT, descriptor.getCatalog()))
                 .append(format(COMMENT_FORMAT, descriptor.getSchema()))
                 .append(format(COMMENT_FORMAT, descriptor.getSource()))
                 .append(format(COMMENT_FORMAT, descriptor.getQueryId()))
-                .append(setSession)
+                .append(getSessionCommand(legacy))
                 .append("EXPLAIN ")
                 .append(descriptor.getSql())
                 .append("\n;")
                 .toString();
     }
 
-    @VisibleForTesting
-    public String getMatchedSource(QueryDescriptor descriptor)
+    protected String getMatchedSource(QueryDescriptor descriptor)
     {
         Matcher matcher = config.getPattern().matcher(descriptor.getSource());
         return matcher.matches() && matcher.groupCount() > 0 ?
@@ -84,13 +91,12 @@ public final class QueryDescriptorFileWriter
                 descriptor.getSource();
     }
 
-    private String getFileName(QueryDescriptor descriptor, boolean legacyOrderBy)
+    protected String getFileName(QueryDescriptor descriptor, boolean legacy)
     {
-        return format("%s.%s.%s", config.getPrefix(), getMatchedSource(descriptor), (legacyOrderBy ? "old" : "new"));
+        return format("%s.%s.%s", config.getPrefix(), getMatchedSource(descriptor), getFileSuffix(legacy));
     }
 
-    @VisibleForTesting
-    public String getEnvironmentTier(QueryDescriptor descriptor)
+    protected String getEnvironmentTier(QueryDescriptor descriptor)
     {
         if (descriptor.getCatalog().equalsIgnoreCase("raptor")) {
             Matcher matcher = TIER_PATTERN.matcher(descriptor.getEnvironment());

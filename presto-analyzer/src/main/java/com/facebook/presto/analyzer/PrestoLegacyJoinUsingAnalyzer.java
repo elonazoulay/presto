@@ -15,14 +15,14 @@ package com.facebook.presto.analyzer;
 
 import static io.airlift.airline.SingleCommand.singleCommand;
 
-public class PrestoLegacyOrderByAnalyzer
+public class PrestoLegacyJoinUsingAnalyzer
 {
-    private PrestoLegacyOrderByAnalyzer()
+    private PrestoLegacyJoinUsingAnalyzer()
     { }
 
     public static void main(String[] args)
     {
-        LegacyOrderByAnalyzeCommand command = singleCommand(LegacyOrderByAnalyzeCommand.class).parse(args);
+        LegacyJoinUsingCommand command = singleCommand(LegacyJoinUsingCommand.class).parse(args);
         command.run();
         System.exit(0);
     }
