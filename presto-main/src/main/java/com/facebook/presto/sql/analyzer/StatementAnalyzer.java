@@ -30,6 +30,8 @@ import com.facebook.presto.spi.CatalogSchemaName;
 import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.ColumnMetadata;
 import com.facebook.presto.spi.PrestoException;
+import com.facebook.presto.spi.PrestoWarning;
+import com.facebook.presto.spi.StandardWarningCode;
 import com.facebook.presto.spi.function.OperatorType;
 import com.facebook.presto.spi.security.Identity;
 import com.facebook.presto.spi.type.ArrayType;
@@ -204,6 +206,7 @@ import static com.google.common.collect.ImmutableList.toImmutableList;
 import static com.google.common.collect.Iterables.getLast;
 import static com.google.common.collect.Iterables.transform;
 import static java.lang.Math.toIntExact;
+import static java.lang.String.format;
 import static java.util.Collections.emptyList;
 import static java.util.Locale.ENGLISH;
 import static java.util.Objects.requireNonNull;
@@ -1519,11 +1522,30 @@ class StatementAnalyzer
                     }
 
                     // otherwise, just use the expression as is
+                    boolean checkDeprecatedBehavior = false;
                     if (orderByExpression == null) {
                         orderByExpression = expression;
+                        checkDeprecatedBehavior = true;
                     }
 
                     ExpressionAnalysis expressionAnalysis = analyzeExpression(orderByExpression, sourceScope);
+                    if (checkDeprecatedBehavior) {
+                        for (Map.Entry<NodeRef<Expression>, FieldId> columnExpression : expressionAnalysis.getColumnReferences().entrySet()) {
+                            Optional<ResolvedField> resolvedField = orderByScope.tryResolveField(columnExpression.getKey().getNode());
+                            if (resolvedField.isPresent() &&
+                                    !FieldId.from(resolvedField.get()).equals(columnExpression.getValue())) {
+                                warningCollector.add(new PrestoWarning(
+                                        StandardWarningCode.LEGACY_ORDER_BY.toWarningCode(),
+                                        format("The column %s referenced in the ORDER BY expression is also present " +
+                                                        "in the SELECT clause aliases and source table. Your query may " +
+                                                        "rely on behavior that doesn't conform to the SQL standard " +
+                                                        "and this behavior will change in a future version. If the intent is to refer " +
+                                                        "to a column in the source table, please qualify the reference " +
+                                                        "with the appropriate table alias.",
+                                                columnExpression.getKey().getNode())));
+                            }
+                        }
+                    }
 
                     analysis.recordSubqueries(node, expressionAnalysis);
 

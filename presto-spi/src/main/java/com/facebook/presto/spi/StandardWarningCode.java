@@ -16,6 +16,7 @@ package com.facebook.presto.spi;
 public enum StandardWarningCode
         implements WarningCodeSupplier
 {
+    LEGACY_ORDER_BY(0x0003_0000)
     /**/;
 
     private final WarningCode warningCode;
