@@ -1224,7 +1224,7 @@ class AstBuilder
     }
 
     @Override
-    public Node visitCurrentUserFunction(SqlBaseParser.CurrentUserFunctionContext context)
+    public Node visitCurrentUser(SqlBaseParser.CurrentUserContext context)
     {
         return new CurrentUser(getLocation(context.CURRENT_USER()));
     }

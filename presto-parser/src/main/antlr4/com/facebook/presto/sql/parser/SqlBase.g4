@@ -313,7 +313,7 @@ primaryExpression
     | name=CURRENT_TIMESTAMP ('(' precision=INTEGER_VALUE ')')?                           #specialDateTimeFunction
     | name=LOCALTIME ('(' precision=INTEGER_VALUE ')')?                                   #specialDateTimeFunction
     | name=LOCALTIMESTAMP ('(' precision=INTEGER_VALUE ')')?                              #specialDateTimeFunction
-    | name=CURRENT_USER                                                                   #currentUserFunction
+    | name=CURRENT_USER                                                                   #currentUser
     | SUBSTRING '(' valueExpression FROM valueExpression (FOR valueExpression)? ')'       #substring
     | NORMALIZE '(' valueExpression (',' normalForm)? ')'                                 #normalize
     | EXTRACT '(' identifier FROM valueExpression ')'                                     #extract
