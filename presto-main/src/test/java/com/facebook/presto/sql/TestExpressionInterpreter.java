@@ -459,7 +459,6 @@ public class TestExpressionInterpreter
 
     @Test
     public void testCurrentUser()
-            throws Exception
     {
         assertOptimizedEquals("current_user", "'" + TEST_SESSION.getUser() + "'");
     }

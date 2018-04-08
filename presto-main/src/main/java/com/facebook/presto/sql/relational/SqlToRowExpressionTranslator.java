@@ -38,6 +38,7 @@ import com.facebook.presto.sql.tree.Cast;
 import com.facebook.presto.sql.tree.CharLiteral;
 import com.facebook.presto.sql.tree.CoalesceExpression;
 import com.facebook.presto.sql.tree.ComparisonExpression;
+import com.facebook.presto.sql.tree.CurrentUser;
 import com.facebook.presto.sql.tree.DecimalLiteral;
 import com.facebook.presto.sql.tree.DereferenceExpression;
 import com.facebook.presto.sql.tree.DoubleLiteral;
@@ -706,6 +707,14 @@ public final class SqlToRowExpressionTranslator
                     .map(this::getType)
                     .collect(toImmutableList());
             return call(rowConstructorSignature(returnType, argumentTypes), returnType, arguments);
+        }
+
+        @Override
+        protected RowExpression visitCurrentUser(CurrentUser node, Void context)
+        {
+            // return visitFunctionCall(DesugarCurrentUserRewriter.getCall(node), context);
+            Signature signature = new Signature("CURRENT_USER", functionKind, VARCHAR.getTypeSignature(), ImmutableList.of());
+            return call(signature, VARCHAR, ImmutableList.of());
         }
     }
 }

@@ -35,9 +35,14 @@ public class DesugarCurrentUserRewriter
         @Override
         public Expression rewriteCurrentUser(CurrentUser node, Void context, ExpressionTreeRewriter<Void> treeRewriter)
         {
-            return node.getLocation()
-                    .map(location -> new FunctionCall(node.getLocation().get(), QualifiedName.of("current_user"), ImmutableList.of()))
-                    .orElse(new FunctionCall(QualifiedName.of("current_user"), ImmutableList.of()));
+            return getCall(node);
         }
+    }
+
+    public static FunctionCall getCall(CurrentUser node)
+    {
+        return node.getLocation()
+                .map(location -> new FunctionCall(node.getLocation().get(), QualifiedName.of("current_user"), ImmutableList.of()))
+                .orElse(new FunctionCall(QualifiedName.of("current_user"), ImmutableList.of()));
     }
 }
