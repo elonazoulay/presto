@@ -760,13 +760,13 @@ public abstract class AbstractTestDistributedQueries
         Session user1 = testSessionBuilder()
                 .setCatalog(getSession().getCatalog().get())
                 .setSchema(getSession().getSchema().get())
-                .setIdentity(new Identity("user1", Optional.empty()))
+                .setIdentity(new Identity("user1", getSession().getIdentity().getPrincipal()))
                 .build();
 
         Session user2 = testSessionBuilder()
                 .setCatalog(getSession().getCatalog().get())
                 .setSchema(getSession().getSchema().get())
-                .setIdentity(new Identity("user2", Optional.empty()))
+                .setIdentity(new Identity("user2", getSession().getIdentity().getPrincipal()))
                 .build();
 
         assertQuery(user1, "SELECT account_name FROM test_accounts_view", "VALUES 'account1'");
