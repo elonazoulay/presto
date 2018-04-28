@@ -61,6 +61,9 @@ import org.weakref.jmx.Nested;
 
 import javax.inject.Inject;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.List;
@@ -70,6 +73,7 @@ import java.util.OptionalInt;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.IntStream;
 
+import static com.facebook.presto.sql.gen.BytecodeUtils.invoke;
 import static com.facebook.presto.sql.gen.InputReferenceCompiler.generateInputReference;
 import static com.facebook.presto.sql.gen.SqlTypeBytecodeExpression.constantType;
 import static com.facebook.presto.util.CompilerUtils.defineClass;
@@ -96,6 +100,7 @@ public class JoinCompiler
 {
     private final FunctionRegistry registry;
     private final boolean groupByUsesEqualTo;
+    private MethodHandle equalToHandle;
 
     private final LoadingCache<CacheKey, LookupSourceSupplierFactory> lookupSourceFactories = CacheBuilder.newBuilder()
             .recordStats()
@@ -119,6 +124,12 @@ public class JoinCompiler
     {
         this.registry = requireNonNull(metadata, "metadata is null").getFunctionRegistry();
         this.groupByUsesEqualTo = requireNonNull(config, "config is null").isGroupByUsesEqualTo();
+        try {
+            equalToHandle = MethodHandles.lookup().findVirtual(Type.class, "equalTo", MethodType.methodType(boolean.class, ImmutableList.of(Block.class, int.class, Block.class, int.class)));
+        }
+        catch (Throwable e) {
+            // noop
+        }
     }
 
     @Managed
@@ -720,15 +731,32 @@ public class JoinCompiler
                         continue;
                 }
             }
-            ScalarFunctionImplementation operator = registry.getScalarFunctionImplementation(registry.resolveOperator(OperatorType.IS_DISTINCT_FROM, ImmutableList.of(type, type)));
-            Binding binding = callSiteBinder.bind(operator.getMethodHandle());
-            List<BytecodeNode> argumentsBytecode = new ArrayList<>();
-            argumentsBytecode.add(generateInputReference(callSiteBinder, scope, type, leftBlock, leftBlockPosition));
-            argumentsBytecode.add(generateInputReference(callSiteBinder, scope, type, rightBlock, rightPosition));
+            if (type instanceof BigintType) {
+                BytecodeBlock block = new BytecodeBlock().setDescription("invokeEqualTo");
+                LabelNode end = new LabelNode("end");
+                Binding binding = callSiteBinder.bind(equalToHandle);
+                block.append(constantType(callSiteBinder, type));
+                block.append(leftBlock);
+                block.append(leftBlockPosition);
+                block.append(rightBlock);
+                block.append(rightPosition);
+                block.append(invoke(binding, "equalTo"));
+                block.visitLabel(end);
+                body.append(new IfStatement()
+                        .condition(block)
+                        .ifFalse(constantFalse().ret()));
+            }
+            else {
+                ScalarFunctionImplementation operator = registry.getScalarFunctionImplementation(registry.resolveOperator(OperatorType.IS_DISTINCT_FROM, ImmutableList.of(type, type)));
+                Binding binding = callSiteBinder.bind(operator.getMethodHandle());
+                List<BytecodeNode> argumentsBytecode = new ArrayList<>();
+                argumentsBytecode.add(generateInputReference(callSiteBinder, scope, type, leftBlock, leftBlockPosition));
+                argumentsBytecode.add(generateInputReference(callSiteBinder, scope, type, rightBlock, rightPosition));
 
-            body.append(new IfStatement()
-                    .condition(BytecodeUtils.generateInvocation(scope, "isDistinctFrom", operator, Optional.empty(), argumentsBytecode, binding))
-                    .ifTrue(constantFalse().ret()));
+                body.append(new IfStatement()
+                        .condition(BytecodeUtils.generateInvocation(scope, "isDistinctFrom", operator, Optional.empty(), argumentsBytecode, binding))
+                        .ifTrue(constantFalse().ret()));
+            }
         }
         body.append(constantTrue().ret());
     }
