@@ -324,9 +324,8 @@ public class BenchmarkGroupByHash
     @State(Scope.Thread)
     public static class BenchmarkData
     {
-        //@Param({"1", "5", "10", "15", "20"})
-        @Param({"10"})
-        private int channelCount = 10;
+        @Param({"1", "5", "10", "15", "20"})
+        private int channelCount = 1;
 
         // todo add more group counts when JMH support programmatic ability to set OperationsPerInvocation
         @Param(GROUP_COUNT_STRING)
