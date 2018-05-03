@@ -81,10 +81,8 @@ public abstract class AbstractLongType
     @Override
     public boolean equalTo(Block leftBlock, int leftPosition, Block rightBlock, int rightPosition)
     {
-        boolean leftIsNull = leftBlock.isNull(leftPosition);
-        boolean rightIsNull = rightBlock.isNull(rightPosition);
-        if (leftIsNull | rightIsNull) {
-            return leftIsNull & rightIsNull;
+        if (leftBlock.isNull(leftPosition) | rightBlock.isNull(rightPosition)) {
+            return leftBlock.isNull(leftPosition) & rightBlock.isNull(rightPosition);
         }
         long leftValue = leftBlock.getLong(leftPosition, 0);
         long rightValue = rightBlock.getLong(rightPosition, 0);
