@@ -16,6 +16,7 @@ package com.facebook.presto.spi;
 public enum StandardWarningCode
         implements WarningCodeSupplier
 {
+    SHOW_PARTITIONS_DEPRECATED(0x0003_0000),
     /**/;
 
     // Warning codes can start at 0x0003_0000
