@@ -11,51 +11,59 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto;
+package com.facebook.presto.execution;
 
-import com.facebook.presto.execution.DedupingWarningCollector;
-import com.facebook.presto.execution.WarningCollector;
+import com.facebook.presto.Session;
+import com.facebook.presto.Session.SessionBuilder;
 import com.facebook.presto.spi.PrestoWarning;
 import com.facebook.presto.spi.QueryId;
 import com.facebook.presto.spi.WarningCode;
 import com.facebook.presto.sql.analyzer.SemanticException;
 import com.facebook.presto.sql.planner.LogicalPlanner;
 import com.facebook.presto.testing.LocalQueryRunner;
-import com.facebook.presto.testing.MaterializedResult;
-import com.facebook.presto.testing.QueryRunner;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import org.intellij.lang.annotations.Language;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
+import org.testng.annotations.Test;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static com.facebook.presto.spi.StandardWarningCode.SHOW_PARTITIONS_DEPRECATED;
 import static com.facebook.presto.testing.TestingSession.testSessionBuilder;
 import static com.google.common.collect.ImmutableSet.toImmutableSet;
 import static org.testng.Assert.fail;
 
-public class TestWarningsUtil
+public class TestPlannerWarnings
 {
-    private TestWarningsUtil()
-    { }
+    private LocalQueryRunner queryRunner;
 
-    public static void assertWarnings(QueryRunner queryRunner, @Language("SQL") String sql, Map<String, String> sessionProperties, List<WarningCode> expectedWarnings)
+    @BeforeClass
+    public void setUp()
+            throws Exception
     {
-        Session.SessionBuilder sessionBuilder = testSessionBuilder()
-                .setCatalog(queryRunner.getDefaultSession().getCatalog().get())
-                .setSchema(queryRunner.getDefaultSession().getSchema().get());
-        sessionProperties.forEach(sessionBuilder::setSystemProperty);
-        Session testingSession = sessionBuilder.build();
-        MaterializedResult result = queryRunner.execute(testingSession, sql);
-        Set<WarningCode> warnings = result.getWarnings().stream()
-                .map(PrestoWarning::getWarningCode)
-                .collect(toImmutableSet());
-        for (WarningCode expectedWarning : expectedWarnings) {
-            if (!warnings.contains(expectedWarning)) {
-                fail("Expected warning: " + expectedWarning);
-            }
-        }
+        SessionBuilder sessionBuilder = testSessionBuilder()
+                .setCatalog("tpch")
+                .setSchema("tiny");
+        queryRunner = new LocalQueryRunner(sessionBuilder.build());
     }
-    public static void assertPlannerWarnings(LocalQueryRunner queryRunner, @Language("SQL") String sql, Map<String, String> sessionProperties, List<WarningCode> expectedWarnings)
+
+    @AfterClass(alwaysRun = true)
+    public void tearDown()
+    {
+        queryRunner.close();
+    }
+
+    @Test
+    public void testShowPartitions()
+    {
+        assertPlannerWarnings("SHOW PARTITIONS FROM orders", ImmutableMap.of(), ImmutableList.of(SHOW_PARTITIONS_DEPRECATED.toWarningCode()));
+    }
+
+    private void assertPlannerWarnings(@Language("SQL") String sql, Map<String, String> sessionProperties, List<WarningCode> expectedWarnings)
     {
         Session.SessionBuilder sessionBuilder = testSessionBuilder()
                 .setCatalog(queryRunner.getDefaultSession().getCatalog().get())

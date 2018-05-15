@@ -27,6 +27,7 @@ import com.facebook.presto.security.AccessControl;
 import com.facebook.presto.spi.CatalogSchemaName;
 import com.facebook.presto.spi.ConnectorTableMetadata;
 import com.facebook.presto.spi.PrestoException;
+import com.facebook.presto.spi.PrestoWarning;
 import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.session.PropertyMetadata;
 import com.facebook.presto.sql.analyzer.QueryExplainer;
@@ -88,6 +89,7 @@ import static com.facebook.presto.metadata.MetadataUtil.createCatalogSchemaName;
 import static com.facebook.presto.metadata.MetadataUtil.createQualifiedName;
 import static com.facebook.presto.metadata.MetadataUtil.createQualifiedObjectName;
 import static com.facebook.presto.spi.StandardErrorCode.INVALID_TABLE_PROPERTY;
+import static com.facebook.presto.spi.StandardWarningCode.SHOW_PARTITIONS_DEPRECATED;
 import static com.facebook.presto.sql.ParsingUtil.createParsingOptions;
 import static com.facebook.presto.sql.QueryUtil.aliased;
 import static com.facebook.presto.sql.QueryUtil.aliasedName;
@@ -366,6 +368,7 @@ final class ShowQueriesRewrite
         @Override
         protected Node visitShowPartitions(ShowPartitions showPartitions, Void context)
         {
+            warningCollector.add(new PrestoWarning(SHOW_PARTITIONS_DEPRECATED.toWarningCode(), "SHOW PARTITIONS is deprecated and will soon be removed"));
             QualifiedObjectName table = createQualifiedObjectName(session, showPartitions, showPartitions.getTable());
             if (!metadata.getTableHandle(session, table).isPresent()) {
                 throw new SemanticException(MISSING_TABLE, showPartitions, "Table '%s' does not exist", table);
