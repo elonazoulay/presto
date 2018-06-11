@@ -14,6 +14,7 @@
 package com.facebook.presto.cost;
 
 import com.facebook.presto.Session;
+import com.facebook.presto.execution.warnings.WarningCollector;
 import com.facebook.presto.metadata.Metadata;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.sql.analyzer.ExpressionAnalyzer;
@@ -372,7 +373,7 @@ public class FilterStatsCalculator
                                 ImmutableList.of(),
                                 // At this stage, there should be no subqueries in the plan.
                                 node -> new IllegalStateException("Unexpected Subquery"),
-                                false);
+                                WarningCollector.NOOP, false);
                         Type type = expressionAnalyzer.analyze(expression, Scope.create());
                         return type;
                     });
