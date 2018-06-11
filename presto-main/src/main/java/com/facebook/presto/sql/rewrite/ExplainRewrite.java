@@ -14,6 +14,7 @@
 package com.facebook.presto.sql.rewrite;
 
 import com.facebook.presto.Session;
+import com.facebook.presto.execution.warnings.WarningCollector;
 import com.facebook.presto.metadata.Metadata;
 import com.facebook.presto.security.AccessControl;
 import com.facebook.presto.sql.analyzer.QueryExplainer;
@@ -52,9 +53,10 @@ final class ExplainRewrite
             Optional<QueryExplainer> queryExplainer,
             Statement node,
             List<Expression> parameters,
-            AccessControl accessControl)
+            AccessControl accessControl,
+            WarningCollector warningCollector)
     {
-        return (Statement) new Visitor(session, parser, queryExplainer).process(node, null);
+        return (Statement) new Visitor(session, parser, queryExplainer, warningCollector).process(node, null);
     }
 
     private static final class Visitor
@@ -63,15 +65,18 @@ final class ExplainRewrite
         private final Session session;
         private final SqlParser parser;
         private final Optional<QueryExplainer> queryExplainer;
+        private final WarningCollector warningCollector;
 
         public Visitor(
                 Session session,
                 SqlParser parser,
-                Optional<QueryExplainer> queryExplainer)
+                Optional<QueryExplainer> queryExplainer,
+                WarningCollector warningCollector)
         {
             this.session = requireNonNull(session, "session is null");
             this.parser = parser;
             this.queryExplainer = requireNonNull(queryExplainer, "queryExplainer is null");
+            this.warningCollector = requireNonNull(warningCollector, "warningCollector is null");
         }
 
         @Override
@@ -113,7 +118,7 @@ final class ExplainRewrite
             validateParameters(statement, parameters);
 
             if (planType == VALIDATE) {
-                queryExplainer.get().analyze(session, statement, parameters);
+                queryExplainer.get().analyze(session, statement, parameters, warningCollector);
                 return singleValueQuery("Valid", true);
             }
 

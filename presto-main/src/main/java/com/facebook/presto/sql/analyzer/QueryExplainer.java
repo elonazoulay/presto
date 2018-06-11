@@ -17,6 +17,7 @@ import com.facebook.presto.Session;
 import com.facebook.presto.cost.CostCalculator;
 import com.facebook.presto.cost.StatsCalculator;
 import com.facebook.presto.execution.DataDefinitionTask;
+import com.facebook.presto.execution.warnings.WarningCollector;
 import com.facebook.presto.metadata.Metadata;
 import com.facebook.presto.security.AccessControl;
 import com.facebook.presto.sql.parser.SqlParser;
@@ -94,9 +95,9 @@ public class QueryExplainer
         this.dataDefinitionTask = ImmutableMap.copyOf(requireNonNull(dataDefinitionTask, "dataDefinitionTask is null"));
     }
 
-    public Analysis analyze(Session session, Statement statement, List<Expression> parameters)
+    public Analysis analyze(Session session, Statement statement, List<Expression> parameters, WarningCollector warningCollector)
     {
-        Analyzer analyzer = new Analyzer(session, metadata, sqlParser, accessControl, Optional.of(this), parameters);
+        Analyzer analyzer = new Analyzer(session, metadata, sqlParser, accessControl, Optional.of(this), parameters, warningCollector);
         return analyzer.analyze(statement);
     }
 
@@ -145,7 +146,7 @@ public class QueryExplainer
     public Plan getLogicalPlan(Session session, Statement statement, List<Expression> parameters)
     {
         // analyze statement
-        Analysis analysis = analyze(session, statement, parameters);
+        Analysis analysis = analyze(session, statement, parameters, WarningCollector.NOOP);
 
         PlanNodeIdAllocator idAllocator = new PlanNodeIdAllocator();
 
