@@ -174,7 +174,7 @@ public class SqlQueryExecution
             this.stateMachine = QueryStateMachine.begin(queryId, query, session, self, false, transactionManager, accessControl, queryExecutor, metadata, warningCollector);
 
             // analyze query
-            Analyzer analyzer = new Analyzer(stateMachine.getSession(), metadata, sqlParser, accessControl, Optional.of(queryExplainer), parameters);
+            Analyzer analyzer = new Analyzer(stateMachine.getSession(), metadata, sqlParser, accessControl, Optional.of(queryExplainer), parameters, warningCollector);
             this.analysis = analyzer.analyze(statement);
 
             stateMachine.setUpdateType(analysis.getUpdateType());

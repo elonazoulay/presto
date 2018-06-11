@@ -16,6 +16,7 @@ package com.facebook.presto.tests.statistics;
 import com.facebook.presto.Session;
 import com.facebook.presto.cost.PlanNodeStatsEstimate;
 import com.facebook.presto.cost.StatsCalculator;
+import com.facebook.presto.execution.warnings.WarningCollector;
 import com.facebook.presto.sql.planner.Plan;
 import com.facebook.presto.sql.planner.Symbol;
 import com.facebook.presto.sql.planner.TypeProvider;
@@ -66,7 +67,7 @@ final class MetricComparator
     private static List<OptionalDouble> getEstimatedValuesInternal(List<Metric> metrics, String query, QueryRunner runner, Session session)
             // TODO inline back this method
     {
-        Plan queryPlan = runner.createPlan(session, query);
+        Plan queryPlan = runner.createPlan(session, query, WarningCollector.NOOP);
         OutputNode outputNode = (OutputNode) queryPlan.getRoot();
         PlanNodeStatsEstimate outputNodeStats = calculateStats(outputNode, runner.getStatsCalculator(), session, queryPlan.getTypes());
         StatsContext statsContext = buildStatsContext(queryPlan, outputNode);
