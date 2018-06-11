@@ -72,7 +72,7 @@ public class Analyzer
     {
         Statement rewrittenStatement = StatementRewrite.rewrite(session, metadata, sqlParser, queryExplainer, statement, parameters, accessControl, warningCollector);
         Analysis analysis = new Analysis(rewrittenStatement, parameters, isDescribe);
-        StatementAnalyzer analyzer = new StatementAnalyzer(analysis, metadata, sqlParser, accessControl, session);
+        StatementAnalyzer analyzer = new StatementAnalyzer(analysis, metadata, sqlParser, accessControl, session, warningCollector);
         analyzer.analyze(rewrittenStatement, Optional.empty());
 
         // check column access permissions for each table

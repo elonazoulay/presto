@@ -14,6 +14,7 @@
 package com.facebook.presto.sql.planner.sanity;
 
 import com.facebook.presto.Session;
+import com.facebook.presto.execution.warnings.WarningCollector;
 import com.facebook.presto.metadata.Metadata;
 import com.facebook.presto.metadata.Signature;
 import com.facebook.presto.spi.type.Type;
@@ -116,7 +117,7 @@ public final class TypeValidator
                     verifyTypeSignature(entry.getKey(), expectedType.getTypeSignature(), types.get(Symbol.from(symbolReference)).getTypeSignature());
                     continue;
                 }
-                Map<NodeRef<Expression>, Type> expressionTypes = getExpressionTypes(session, metadata, sqlParser, types, entry.getValue(), emptyList() /* parameters already replaced */);
+                Map<NodeRef<Expression>, Type> expressionTypes = getExpressionTypes(session, metadata, sqlParser, types, entry.getValue(), emptyList(), /* parameters already replaced */WarningCollector.NOOP);
                 Type actualType = expressionTypes.get(NodeRef.of(entry.getValue()));
                 verifyTypeSignature(entry.getKey(), expectedType.getTypeSignature(), actualType.getTypeSignature());
             }
@@ -162,7 +163,7 @@ public final class TypeValidator
         private void checkCall(Symbol symbol, FunctionCall call)
         {
             Type expectedType = types.get(symbol);
-            Map<NodeRef<Expression>, Type> expressionTypes = getExpressionTypes(session, metadata, sqlParser, types, call, emptyList() /*parameters already replaced */);
+            Map<NodeRef<Expression>, Type> expressionTypes = getExpressionTypes(session, metadata, sqlParser, types, call, emptyList(), /*parameters already replaced */WarningCollector.NOOP);
             Type actualType = expressionTypes.get(NodeRef.<Expression>of(call));
             verifyTypeSignature(symbol, expectedType.getTypeSignature(), actualType.getTypeSignature());
         }
