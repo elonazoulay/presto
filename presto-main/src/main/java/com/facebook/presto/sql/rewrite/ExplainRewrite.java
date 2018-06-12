@@ -131,13 +131,13 @@ final class ExplainRewrite
             String plan;
             switch (planFormat) {
                 case GRAPHVIZ:
-                    plan = queryExplainer.get().getGraphvizPlan(session, statement, planType, parameters);
+                    plan = queryExplainer.get().getGraphvizPlan(session, statement, planType, parameters, warningCollector);
                     break;
                 case JSON:
-                    plan = queryExplainer.get().getJsonPlan(session, statement, planType, parameters);
+                    plan = queryExplainer.get().getJsonPlan(session, statement, planType, parameters, warningCollector);
                     break;
                 case TEXT:
-                    plan = queryExplainer.get().getPlan(session, statement, planType, parameters);
+                    plan = queryExplainer.get().getPlan(session, statement, planType, parameters, warningCollector);
                     break;
                 default:
                     throw new IllegalArgumentException("Invalid Explain Format: " + planFormat.toString());
