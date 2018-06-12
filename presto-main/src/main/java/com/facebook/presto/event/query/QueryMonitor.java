@@ -275,6 +275,7 @@ public class QueryMonitor
                                     environment),
                             new QueryIOMetadata(inputs.build(), output),
                             queryFailureInfo,
+                            queryInfo.getWarnings(),
                             ofEpochMilli(queryStats.getCreateTime().getMillis()),
                             ofEpochMilli(queryStats.getExecutionStartTime().getMillis()),
                             ofEpochMilli(queryStats.getEndTime().getMillis())));
