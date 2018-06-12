@@ -387,6 +387,7 @@ class Query
                             .setScheduled(false)
                             .build(),
                     null,
+                    ImmutableList.of(),
                     null,
                     null);
 
@@ -488,6 +489,7 @@ class Query
                 data,
                 toStatementStats(queryInfo),
                 toQueryError(queryInfo),
+                queryInfo.getWarnings(),
                 queryInfo.getUpdateType(),
                 updateCount);
 
