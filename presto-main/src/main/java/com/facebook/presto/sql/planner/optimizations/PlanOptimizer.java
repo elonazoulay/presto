@@ -14,6 +14,7 @@
 package com.facebook.presto.sql.planner.optimizations;
 
 import com.facebook.presto.Session;
+import com.facebook.presto.execution.warnings.WarningCollector;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.sql.planner.PlanNodeIdAllocator;
 import com.facebook.presto.sql.planner.Symbol;
@@ -25,8 +26,9 @@ import java.util.Map;
 public interface PlanOptimizer
 {
     PlanNode optimize(PlanNode plan,
-            Session session,
-            Map<Symbol, Type> types,
-            SymbolAllocator symbolAllocator,
-            PlanNodeIdAllocator idAllocator);
+                      Session session,
+                      Map<Symbol, Type> types,
+                      SymbolAllocator symbolAllocator,
+                      PlanNodeIdAllocator idAllocator,
+                      WarningCollector warningCollector);
 }

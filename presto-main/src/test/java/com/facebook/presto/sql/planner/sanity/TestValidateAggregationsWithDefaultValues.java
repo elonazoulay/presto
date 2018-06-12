@@ -14,6 +14,7 @@
 package com.facebook.presto.sql.planner.sanity;
 
 import com.facebook.presto.connector.ConnectorId;
+import com.facebook.presto.execution.warnings.WarningCollector;
 import com.facebook.presto.metadata.Metadata;
 import com.facebook.presto.metadata.TableHandle;
 import com.facebook.presto.metadata.TableLayoutHandle;
@@ -207,7 +208,7 @@ public class TestValidateAggregationsWithDefaultValues
         getQueryRunner().inTransaction(session -> {
             // metadata.getCatalogHandle() registers the catalog for the transaction
             session.getCatalog().ifPresent(catalog -> metadata.getCatalogHandle(session, catalog));
-            new ValidateAggregationsWithDefaultValues(forceSingleNode).validate(root, session, metadata, SQL_PARSER, ImmutableMap.of());
+            new ValidateAggregationsWithDefaultValues(forceSingleNode).validate(root, session, metadata, SQL_PARSER, ImmutableMap.of(), WarningCollector.NOOP);
             return null;
         });
     }
