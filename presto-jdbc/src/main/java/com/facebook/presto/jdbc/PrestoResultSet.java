@@ -105,8 +105,9 @@ public class PrestoResultSet
     private final AtomicReference<List<Object>> row = new AtomicReference<>();
     private final AtomicBoolean wasNull = new AtomicBoolean();
     private final AtomicBoolean closed = new AtomicBoolean();
+    private final WarningsManager warningsManager;
 
-    PrestoResultSet(StatementClient client, long maxRows, Consumer<QueryStats> progressCallback)
+    PrestoResultSet(StatementClient client, long maxRows, Consumer<QueryStats> progressCallback, WarningsManager warningsManager)
             throws SQLException
     {
         this.client = requireNonNull(client, "client is null");
@@ -119,8 +120,9 @@ public class PrestoResultSet
         this.fieldMap = getFieldMap(columns);
         this.columnInfoList = getColumnInfo(columns);
         this.resultSetMetaData = new PrestoResultSetMetaData(columnInfoList);
+        this.warningsManager = requireNonNull(warningsManager, "warningsManager is null");
 
-        this.results = flatten(new ResultsPageIterator(client, progressCallback), maxRows);
+        this.results = flatten(new ResultsPageIterator(client, progressCallback, warningsManager), maxRows);
     }
 
     public String getQueryId()
@@ -482,7 +484,7 @@ public class PrestoResultSet
             throws SQLException
     {
         checkOpen();
-        return null;
+        return warningsManager.getWarnings();
     }
 
     @Override
@@ -490,6 +492,7 @@ public class PrestoResultSet
             throws SQLException
     {
         checkOpen();
+        warningsManager.clearWarnings();
     }
 
     @Override
@@ -1758,21 +1761,30 @@ public class PrestoResultSet
     {
         private final StatementClient client;
         private final Consumer<QueryStats> progressCallback;
+        private final WarningsManager warningsManager;
+        private final String updateType;
 
-        private ResultsPageIterator(StatementClient client, Consumer<QueryStats> progressCallback)
+        private ResultsPageIterator(StatementClient client, Consumer<QueryStats> progressCallback, WarningsManager warningsManager)
         {
             this.client = requireNonNull(client, "client is null");
             this.progressCallback = requireNonNull(progressCallback, "progressCallback is null");
+            this.warningsManager = requireNonNull(warningsManager, "warningsManager is null");
+            this.updateType = client.isRunning() ? client.currentStatusInfo().getUpdateType() : client.finalStatusInfo().getUpdateType();
         }
 
         @Override
         protected Iterable<List<Object>> computeNext()
         {
+            if (updateType == null) {
+                // Clear the warnings if this is a query, per ResultSet javadoc
+                warningsManager.clearWarnings();
+            }
             while (client.isRunning()) {
                 checkInterruption(null);
 
                 QueryStatusInfo results = client.currentStatusInfo();
                 progressCallback.accept(QueryStats.create(results.getId(), results.getStats()));
+                warningsManager.addWarnings(results.getWarnings());
                 Iterable<List<Object>> data = client.currentData().getData();
 
                 try {
@@ -1791,7 +1803,7 @@ public class PrestoResultSet
             verify(client.isFinished());
             QueryStatusInfo results = client.finalStatusInfo();
             progressCallback.accept(QueryStats.create(results.getId(), results.getStats()));
-
+            warningsManager.addWarnings(results.getWarnings());
             if (results.getError() != null) {
                 throw new RuntimeException(resultsException(results));
             }
