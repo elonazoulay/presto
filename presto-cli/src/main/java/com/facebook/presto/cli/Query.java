@@ -19,6 +19,7 @@ import com.facebook.presto.client.ErrorLocation;
 import com.facebook.presto.client.QueryError;
 import com.facebook.presto.client.QueryStatusInfo;
 import com.facebook.presto.client.StatementClient;
+import com.facebook.presto.spi.PrestoWarning;
 import com.google.common.base.Splitter;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
@@ -34,6 +35,7 @@ import java.io.OutputStreamWriter;
 import java.io.PrintStream;
 import java.io.UncheckedIOException;
 import java.io.Writer;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -131,13 +133,14 @@ public class Query
         StatusPrinter statusPrinter = null;
         @SuppressWarnings("resource")
         PrintStream errorChannel = interactive ? out : System.err;
+        WarningsPrinter warningsPrinter = new PrintStreamWarningsPrinter(System.err);
 
         if (interactive) {
             statusPrinter = new StatusPrinter(client, out, debug);
             statusPrinter.printInitialStatusUpdates();
         }
         else {
-            waitForData();
+            processInitialStatusUpdates(warningsPrinter);
         }
 
         // if running or finished
@@ -158,7 +161,13 @@ public class Query
         checkState(!client.isRunning());
 
         if (statusPrinter != null) {
+            // Print all warnings at the end of the query
+            new PrintStreamWarningsPrinter(System.err).print(client.finalStatusInfo().getWarnings(), true, true);
             statusPrinter.printFinalInfo();
+        }
+        else {
+            // Print remaining warnings separated
+            warningsPrinter.print(client.finalStatusInfo().getWarnings(), true, true);
         }
 
         if (client.isClientAborted()) {
@@ -179,11 +188,14 @@ public class Query
         return true;
     }
 
-    private void waitForData()
+    private void processInitialStatusUpdates(WarningsPrinter warningsPrinter)
     {
         while (client.isRunning() && (client.currentData().getData() == null)) {
+            warningsPrinter.print(client.currentStatusInfo().getWarnings(), true, false);
             client.advance();
         }
+        List<PrestoWarning> warnings = (client.isRunning() ? client.currentStatusInfo() : client.finalStatusInfo()).getWarnings();
+        warningsPrinter.print(warnings, false, true);
     }
 
     private void renderUpdate(PrintStream out, QueryStatusInfo results)
@@ -355,6 +367,32 @@ public class Query
             String padding = Strings.repeat(" ", prefix.length() + (location.getColumnNumber() - 1));
             out.println(prefix + errorLine);
             out.println(padding + "^");
+        }
+    }
+
+    private static class PrintStreamWarningsPrinter
+            extends AbstractWarningsPrinter
+    {
+        private final PrintStream printStream;
+
+        PrintStreamWarningsPrinter(PrintStream printStream)
+        {
+            this.printStream = requireNonNull(printStream, "printStream is null");
+        }
+
+        @Override
+        protected void print(List<PrestoWarning> warnings)
+        {
+            requireNonNull(warnings, "warnings is null");
+            for (Iterator<PrestoWarning> iterator = warningIterator(warnings); iterator.hasNext(); ) {
+                printStream.println(getWarningMessage(iterator.next()));
+            }
+        }
+
+        @Override
+        protected void printSeparator()
+        {
+            printStream.println();
         }
     }
 }

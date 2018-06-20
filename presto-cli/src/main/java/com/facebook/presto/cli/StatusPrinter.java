@@ -17,6 +17,7 @@ import com.facebook.presto.client.QueryStatusInfo;
 import com.facebook.presto.client.StageStats;
 import com.facebook.presto.client.StatementClient;
 import com.facebook.presto.client.StatementStats;
+import com.facebook.presto.spi.PrestoWarning;
 import com.google.common.base.Strings;
 import com.google.common.primitives.Ints;
 import io.airlift.log.Logger;
@@ -24,6 +25,8 @@ import io.airlift.units.DataSize;
 import io.airlift.units.Duration;
 
 import java.io.PrintStream;
+import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.facebook.presto.cli.FormatUtils.formatCount;
@@ -40,6 +43,7 @@ import static io.airlift.units.Duration.nanosSince;
 import static java.lang.Character.toUpperCase;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
+import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
@@ -47,6 +51,7 @@ public class StatusPrinter
 {
     private static final Logger log = Logger.get(StatusPrinter.class);
 
+    private static final int DISPLAYED_WARNINGS = 5;
     private static final int CTRL_C = 3;
     private static final int CTRL_P = 16;
 
@@ -87,6 +92,7 @@ Peak Memory: 1.97GB
     {
         long lastPrint = System.nanoTime();
         try {
+            WarningsPrinter warningsPrinter = new ConsoleWarningsPrinter(console);
             while (client.isRunning()) {
                 try {
                     // exit status loop if there is pending output
@@ -103,7 +109,7 @@ Peak Memory: 1.97GB
                         client.cancelLeafStage();
                     }
                     else if (key == CTRL_C) {
-                        updateScreen();
+                        updateScreen(warningsPrinter);
                         update = false;
                         client.close();
                     }
@@ -115,7 +121,7 @@ Peak Memory: 1.97GB
 
                     // update screen
                     if (update) {
-                        updateScreen();
+                        updateScreen(warningsPrinter);
                         lastPrint = System.nanoTime();
                     }
 
@@ -135,10 +141,10 @@ Peak Memory: 1.97GB
         }
     }
 
-    private void updateScreen()
+    private void updateScreen(WarningsPrinter warningsPrinter)
     {
         console.repositionCursor();
-        printQueryInfo(client.currentStatusInfo());
+        printQueryInfo(client.currentStatusInfo(), warningsPrinter);
     }
 
     public void printFinalInfo()
@@ -215,7 +221,7 @@ Peak Memory: 1.97GB
         out.println();
     }
 
-    private void printQueryInfo(QueryStatusInfo results)
+    private void printQueryInfo(QueryStatusInfo results, WarningsPrinter warningsPrinter)
     {
         StatementStats stats = results.getStats();
         Duration wallTime = nanosSince(start);
@@ -365,6 +371,7 @@ Peak Memory: 1.97GB
                     stats.getCompletedSplits());
             reprintLine(querySummary);
         }
+        warningsPrinter.print(results.getWarnings(), false, false);
     }
 
     private void printStageTree(StageStats stage, String indent, AtomicInteger stageNumberCounter)
@@ -439,5 +446,45 @@ Peak Memory: 1.97GB
             return 0;
         }
         return min(100, (count * 100.0) / total);
+    }
+
+    private static class ConsoleWarningsPrinter
+            extends AbstractWarningsPrinter
+    {
+        private final ConsolePrinter console;
+
+        ConsoleWarningsPrinter(ConsolePrinter console)
+        {
+            this.console = requireNonNull(console, "console is null");
+        }
+
+        @Override
+        protected void print(List<PrestoWarning> warnings)
+        {
+            requireNonNull(warnings, "warnings is null");
+
+            console.reprintLine("");
+
+            int warningsSize = warnings.size();
+            int processedWarningsCount = getProcessedWarnings();
+            int end = Math.min(warningsSize, processedWarningsCount + StatusPrinter.DISPLAYED_WARNINGS);
+
+            Iterator<PrestoWarning> iterator = warningIterator(warnings);
+            while (processedWarningsCount < end && iterator.hasNext()) {
+                console.reprintLine(getWarningMessage(iterator.next()));
+                processedWarningsCount++;
+            }
+
+            // Remove warnings from previous screen
+            for (int i = 0; i < StatusPrinter.DISPLAYED_WARNINGS - warningsSize + processedWarningsCount; i++) {
+                console.reprintLine("");
+            }
+        }
+
+        @Override
+        protected void printSeparator()
+        {
+            console.reprintLine("");
+        }
     }
 }
