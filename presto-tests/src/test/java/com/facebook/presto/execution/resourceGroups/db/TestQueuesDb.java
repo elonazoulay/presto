@@ -15,6 +15,7 @@ package com.facebook.presto.execution.resourceGroups.db;
 
 import com.facebook.presto.Session;
 import com.facebook.presto.execution.QueryManager;
+import com.facebook.presto.execution.QueryState;
 import com.facebook.presto.execution.resourceGroups.InternalResourceGroupManager;
 import com.facebook.presto.resourceGroups.db.DbResourceGroupConfigurationManager;
 import com.facebook.presto.resourceGroups.db.H2ResourceGroupsDao;
@@ -22,13 +23,17 @@ import com.facebook.presto.server.ResourceGroupInfo;
 import com.facebook.presto.spi.QueryId;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupId;
 import com.facebook.presto.testing.MaterializedResult;
+import com.facebook.presto.testing.MaterializedRow;
 import com.facebook.presto.tests.DistributedQueryRunner;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -59,6 +64,8 @@ import static io.airlift.testing.Assertions.assertContains;
 import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNotEquals;
+import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
 
 // run single threaded to avoid creating multiple query runners at once
@@ -222,6 +229,66 @@ public class TestQueuesDb
         assertEquals(result.getOnlyValue(), ImmutableList.of("global", "user-user", "dashboard-user"));
     }
 
+    @Test(timeOut = 150_000)
+    public void testQuerySystemTableApproximatePosition()
+            throws Exception
+    {
+        // Max out running queries
+        QueryId dashQuery = createQuery(queryRunner, dashboardSession(), LONG_LASTING_QUERY);
+        waitForQueryState(queryRunner, dashQuery, RUNNING);
+        QueryId adhocQuery1 = createQuery(queryRunner, adhocSession(), LONG_LASTING_QUERY);
+        QueryId adhocQuery2 = createQuery(queryRunner, adhocSession(), LONG_LASTING_QUERY);
+        waitForQueryState(queryRunner, adhocQuery1, RUNNING);
+        waitForQueryState(queryRunner, adhocQuery2, RUNNING);
+
+        // Create queued queries
+        QueryId dashQueuedQuery1 = createQuery(queryRunner, dashboardSession(), LONG_LASTING_QUERY);
+        QueryId adhocQueuedQuery1 = createQuery(queryRunner, adhocSession(), LONG_LASTING_QUERY);
+        QueryId adhocQueuedQuery2 = createQuery(queryRunner, adhocSession(), LONG_LASTING_QUERY);
+        waitForQueryState(queryRunner, dashQueuedQuery1, QUEUED);
+        waitForQueryState(queryRunner, adhocQueuedQuery1, QUEUED);
+        waitForQueryState(queryRunner, adhocQueuedQuery2, QUEUED);
+        Thread.sleep(500);
+        MaterializedResult result = queryRunner.execute("SELECT resource_group_id, state, approximate_queue_position FROM system.runtime.queries WHERE source != 'test' ORDER BY approximate_queue_position");
+        Optional<ResourceGroupId> previous = Optional.empty();
+        ImmutableSet.Builder<Long> positions = ImmutableSet.builder();
+        int positionCount = 0;
+        for (MaterializedRow row : result.getMaterializedRows()) {
+            String state = (String) row.getField(1);
+            Optional<ResourceGroupId> resourceGroupId = Optional.ofNullable(new ResourceGroupId((List<String>) row.getField(0)));
+            Long position = (Long) row.getField(2);
+            if (QueryState.valueOf(state) == RUNNING) {
+                assertNull(position);
+            }
+            else if (QueryState.valueOf(state) == QUEUED) {
+                if ((positionCount++ & 1) == 1) {
+                    // Only compare the first 2 queued entries
+                    assertNotEquals(previous, resourceGroupId);
+                }
+                previous = resourceGroupId;
+                positions.add(position);
+            }
+        }
+        assertEquals(positions.build(), ImmutableSet.of(1L, 2L, 3L));
+
+        // Verify the relative order is the same for each call
+        Map<String, Long> expected = getApproximateOrder();
+        // When testing before enforcing the ordering, assertion failures occured well within 100 trials
+        for (int trial = 0; trial < 100; trial++) {
+            Thread.sleep(20);
+            Map<String, Long> actual = getApproximateOrder();
+            assertEquals(actual, expected, "Actual: " + actual + " Expected: " + expected);
+        }
+    }
+
+    private Map<String, Long> getApproximateOrder()
+    {
+        MaterializedResult result = queryRunner.execute("SELECT query_id, approximate_queue_position FROM system.runtime.queries WHERE source != 'test' AND state = 'QUEUED'");
+        ImmutableMap.Builder<String, Long> builder = ImmutableMap.builder();
+        result.getMaterializedRows().stream()
+                .forEach(row -> builder.put((String) row.getField(0), (Long) row.getField(1)));
+        return builder.build();
+    }
     @Test(timeOut = 60_000)
     public void testSelectorPriority()
             throws Exception

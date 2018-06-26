@@ -16,10 +16,12 @@ package com.facebook.presto.connector.system;
 import com.facebook.presto.execution.QueryInfo;
 import com.facebook.presto.execution.QueryManager;
 import com.facebook.presto.execution.QueryStats;
+import com.facebook.presto.execution.resourceGroups.ResourceGroupManager;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorTableMetadata;
 import com.facebook.presto.spi.InMemoryRecordSet;
 import com.facebook.presto.spi.InMemoryRecordSet.Builder;
+import com.facebook.presto.spi.QueryId;
 import com.facebook.presto.spi.RecordCursor;
 import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.SystemTable;
@@ -29,20 +31,31 @@ import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.resourceGroups.ResourceGroupId;
 import com.facebook.presto.spi.type.ArrayType;
+import com.google.common.collect.ImmutableMap;
 import io.airlift.node.NodeInfo;
 import io.airlift.units.Duration;
 import org.joda.time.DateTime;
 
 import javax.inject.Inject;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
+import static com.facebook.presto.execution.QueryState.QUEUED;
 import static com.facebook.presto.metadata.MetadataUtil.TableMetadataBuilder.tableMetadataBuilder;
 import static com.facebook.presto.spi.SystemTable.Distribution.ALL_COORDINATORS;
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.facebook.presto.spi.type.TimestampType.TIMESTAMP;
 import static com.facebook.presto.spi.type.VarcharType.createUnboundedVarcharType;
+import static com.google.common.collect.Streams.zip;
 import static io.airlift.slice.Slices.utf8Slice;
+import static java.util.Comparator.comparing;
 import static java.util.Objects.requireNonNull;
 
 public class QuerySystemTable
@@ -59,6 +72,7 @@ public class QuerySystemTable
             .column("query", createUnboundedVarcharType())
             .column("resource_group_id", new ArrayType(createUnboundedVarcharType()))
 
+            .column("approximate_queue_position", BIGINT)
             .column("queued_time_ms", BIGINT)
             .column("analysis_time_ms", BIGINT)
             .column("distributed_planning_time_ms", BIGINT)
@@ -71,12 +85,14 @@ public class QuerySystemTable
 
     private final QueryManager queryManager;
     private final String nodeId;
+    private final ResourceGroupManager resourceGroupManager;
 
     @Inject
-    public QuerySystemTable(QueryManager queryManager, NodeInfo nodeInfo)
+    public QuerySystemTable(QueryManager queryManager, NodeInfo nodeInfo, ResourceGroupManager resourceGroupManager)
     {
         this.queryManager = queryManager;
         this.nodeId = nodeInfo.getNodeId();
+        this.resourceGroupManager = requireNonNull(resourceGroupManager, "resourceGroupManager is null");
     }
 
     @Override
@@ -95,7 +111,9 @@ public class QuerySystemTable
     public RecordCursor cursor(ConnectorTransactionHandle transactionHandle, ConnectorSession session, TupleDomain<Integer> constraint)
     {
         Builder table = InMemoryRecordSet.builder(QUERY_TABLE);
-        for (QueryInfo queryInfo : queryManager.getAllQueryInfo()) {
+        List<QueryInfo> allQueryInfo = queryManager.getAllQueryInfo();
+        Map<QueryId, Integer> approximateQueuePosition = getApproximateQueuePosition(allQueryInfo);
+        for (QueryInfo queryInfo : allQueryInfo) {
             QueryStats queryStats = queryInfo.getQueryStats();
             table.addRow(
                     nodeId,
@@ -106,6 +124,7 @@ public class QuerySystemTable
                     queryInfo.getQuery(),
                     queryInfo.getResourceGroupId().map(QuerySystemTable::resourceGroupIdToBlock).orElse(null),
 
+                    approximateQueuePosition.get(queryInfo.getQueryId()),
                     toMillis(queryStats.getQueuedTime()),
                     toMillis(queryStats.getAnalysisTime()),
                     toMillis(queryStats.getDistributedPlanningTime()),
@@ -143,5 +162,53 @@ public class QuerySystemTable
             return null;
         }
         return dateTime.getMillis();
+    }
+
+    private Map<QueryId, Integer> getApproximateQueuePosition(List<QueryInfo> allQueryInfo)
+    {
+        // Round robin through leaf groups with queued queries to get approximate order
+        // Actual order depends on how long running queries take and concurrency limits
+        Map<ResourceGroupId, Set<ResourceGroupId>> rootGroups = new HashMap<>();
+        Map<ResourceGroupId, List<QueryId>> leafGroups = new HashMap<>();
+        ImmutableMap.Builder<QueryId, Integer> approximateQueuePosition = ImmutableMap.builder();
+
+        for (QueryInfo queryInfo : allQueryInfo) {
+            if (!queryInfo.getResourceGroupId().isPresent() ||
+                    !queryInfo.getState().equals(QUEUED) ||
+                    resourceGroupManager.getResourceGroupInfo(queryInfo.getResourceGroupId().get()).getHardConcurrencyLimit() < 1) {
+                continue;
+            }
+
+            rootGroups.computeIfAbsent(queryInfo.getResourceGroupId().get().getRoot(), group -> new HashSet<>())
+                    .add(queryInfo.getResourceGroupId().get());
+            leafGroups.computeIfAbsent(queryInfo.getResourceGroupId().get(), group -> new ArrayList<>())
+                    .add(queryInfo.getQueryId());
+        }
+        for (Set<ResourceGroupId> leafs : rootGroups.values()) {
+            int order = 1;
+            LinkedList<Iterator<QueryId>> leafIterators = new LinkedList<>();
+            // Sort leaf groups for each root group so that relative order of queued queries is preserved across calls to this method.
+            // Sort query ids within leaf groups as well. This way the user will never see their queue position increase.
+            leafs.stream()
+                    .sorted((groupA, groupB) ->
+                        zip(groupA.getSegments().stream(), groupB.getSegments().stream(), (a, b) -> a.compareTo(b))
+                                .filter(comparision -> comparision != 0)
+                                .findFirst()
+                                .orElse(Integer.compare(groupA.getSegments().size(), groupB.getSegments().size())))
+                    .forEach(leaf -> leafIterators.add(leafGroups.get(leaf).stream()
+                            .sorted(comparing(QueryId::toString)).iterator()));
+            while (!leafIterators.isEmpty()) {
+                for (Iterator<Iterator<QueryId>> iterator = leafIterators.iterator(); iterator.hasNext(); ) {
+                    Iterator<QueryId> leafIterator = iterator.next();
+                    if (!leafIterator.hasNext()) {
+                        iterator.remove();
+                    }
+                    else {
+                        approximateQueuePosition.put(leafIterator.next(), order++);
+                    }
+                }
+            }
+        }
+        return approximateQueuePosition.build();
     }
 }

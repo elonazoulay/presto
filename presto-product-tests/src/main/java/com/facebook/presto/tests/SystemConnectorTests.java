@@ -47,6 +47,7 @@ public class SystemConnectorTests
                 "  user," +
                 "  query," +
                 "  resource_group_id," +
+                "  approximate_queue_position," +
                 "  queued_time_ms," +
                 "  analysis_time_ms," +
                 "  distributed_planning_time_ms," +
@@ -57,7 +58,7 @@ public class SystemConnectorTests
                 "FROM system.runtime.queries";
         assertThat(query(sql))
                 .hasColumns(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, ARRAY,
-                        BIGINT, BIGINT, BIGINT, TIMESTAMP, TIMESTAMP, TIMESTAMP, VARCHAR)
+                        BIGINT, BIGINT, BIGINT, BIGINT, TIMESTAMP, TIMESTAMP, TIMESTAMP, VARCHAR)
                 .hasAnyRows();
     }
 
