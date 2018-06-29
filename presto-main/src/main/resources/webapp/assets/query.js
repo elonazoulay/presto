@@ -1371,6 +1371,18 @@ let QueryDetail = React.createClass({
                                                 </div>
                                             </td>
                                         </tr>
+                                        <tr>
+                                            <td>
+                                                <h3 className="warnings-title">
+                                                    Warnings
+                                                </h3>
+                                                <div className="warnings-container">
+                                                    <pre className="warnings-text">
+                                                        { formatWarnings(query.warnings) }
+                                                    </pre>
+                                                </div>
+                                            </td>
+                                        </tr>
                                         <tr className="tr-noborder">
                                             <td className="info-sparkline-text">
                                                 { formatDataSize(this.state.reservedMemory[this.state.reservedMemory.length - 1]) }

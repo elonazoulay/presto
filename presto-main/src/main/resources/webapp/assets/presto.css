@@ -533,6 +533,23 @@ pre {
     color: #fff;
 }
 
+.warnings-title {
+    width: 70px;
+    color: yellow;
+    text-align: left;
+}
+
+.warnings-container {
+    width: 700px;
+    max-height: 200px;
+    overflow-y: scroll;
+    align: left;
+}
+
+.warnings-text {
+    color: yellow
+}
+
 .table > tbody > tr > .info-sparkline-text {
     color: #fff;
     border-top: none;
