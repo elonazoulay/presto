@@ -554,3 +554,11 @@ function removeQueryId(id) {
     }
     return id;
 }
+
+function formatWarnings(warnings) {
+    var messages = "";
+    for (index = 0; index < warnings.length; index++) {
+        messages += warnings[index].message + "\n";
+    }
+    return messages;
+}

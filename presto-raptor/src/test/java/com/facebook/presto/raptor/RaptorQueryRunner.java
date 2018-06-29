@@ -144,7 +144,7 @@ public final class RaptorQueryRunner
             throws Exception
     {
         Logging.initialize();
-        Map<String, String> properties = ImmutableMap.of("http-server.http.port", "8080");
+        Map<String, String> properties = ImmutableMap.of("http-server.http.port", "8080", "testing-warning-collector.add-warnings", "true");
         DistributedQueryRunner queryRunner = createRaptorQueryRunner(properties, false, false);
         Thread.sleep(10);
         Logger log = Logger.get(RaptorQueryRunner.class);
