@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.testing;
 
+import com.facebook.presto.execution.warnings.ClearingWarningCollectorFactory;
 import com.facebook.presto.execution.warnings.WarningCollectorConfig;
 import com.facebook.presto.execution.warnings.WarningCollectorFactory;
 import com.google.inject.Binder;
@@ -40,5 +41,14 @@ public class TestingWarningCollectorModule
         requireNonNull(config, "config is null");
         requireNonNull(testConfig, "testConfig is null");
         return () -> new TestingWarningCollector(config, testConfig);
+    }
+
+    @Provides
+    @Singleton
+    public ClearingWarningCollectorFactory createTaskWarningCollectorFactory(WarningCollectorConfig config, TestingWarningCollectorConfig testConfig)
+    {
+        requireNonNull(config, "config is null");
+        requireNonNull(testConfig, "testConfig is null");
+        return () -> new TestingSqlTaskWarningCollector(config, testConfig);
     }
 }

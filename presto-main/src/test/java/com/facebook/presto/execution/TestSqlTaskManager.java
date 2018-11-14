@@ -20,6 +20,8 @@ import com.facebook.presto.TaskSource;
 import com.facebook.presto.execution.buffer.BufferResult;
 import com.facebook.presto.execution.buffer.BufferState;
 import com.facebook.presto.execution.executor.TaskExecutor;
+import com.facebook.presto.execution.warnings.SqlTaskWarningCollector;
+import com.facebook.presto.execution.warnings.WarningCollectorConfig;
 import com.facebook.presto.memory.LocalMemoryManager;
 import com.facebook.presto.memory.NodeMemoryConfig;
 import com.facebook.presto.memory.ReservedSystemMemoryConfig;
@@ -248,7 +250,8 @@ public class TestSqlTaskManager
                 new NodeMemoryConfig(),
                 localSpillManager,
                 new NodeSpillConfig(),
-                new TestingGcMonitor());
+                new TestingGcMonitor(),
+                () -> new SqlTaskWarningCollector(new WarningCollectorConfig()));
     }
 
     private TaskInfo createTask(SqlTaskManager sqlTaskManager, TaskId taskId, ImmutableSet<ScheduledSplit> splits, OutputBuffers outputBuffers)

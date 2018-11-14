@@ -37,4 +37,12 @@ public class WarningCollectorModule
         requireNonNull(config, "config is null");
         return () -> new DefaultWarningCollector(config);
     }
+
+    @Provides
+    @Singleton
+    public ClearingWarningCollectorFactory createClearingWarningCollectorFactory(WarningCollectorConfig config)
+    {
+        requireNonNull(config, "config is null");
+        return () -> new SqlTaskWarningCollector(config);
+    }
 }

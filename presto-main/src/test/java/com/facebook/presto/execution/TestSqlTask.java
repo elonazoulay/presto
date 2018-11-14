@@ -19,6 +19,8 @@ import com.facebook.presto.TaskSource;
 import com.facebook.presto.execution.buffer.BufferResult;
 import com.facebook.presto.execution.buffer.BufferState;
 import com.facebook.presto.execution.executor.TaskExecutor;
+import com.facebook.presto.execution.warnings.SqlTaskWarningCollector;
+import com.facebook.presto.execution.warnings.WarningCollectorConfig;
 import com.facebook.presto.memory.DefaultQueryContext;
 import com.facebook.presto.memory.MemoryPool;
 import com.facebook.presto.spi.QueryId;
@@ -323,6 +325,7 @@ public class TestSqlTask
                 taskNotificationExecutor,
                 Functions.identity(),
                 new DataSize(32, MEGABYTE),
-                new CounterStat());
+                new CounterStat(),
+                new SqlTaskWarningCollector(new WarningCollectorConfig()));
     }
 }

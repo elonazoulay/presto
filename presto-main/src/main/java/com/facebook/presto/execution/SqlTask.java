@@ -21,6 +21,7 @@ import com.facebook.presto.execution.StateMachine.StateChangeListener;
 import com.facebook.presto.execution.buffer.BufferResult;
 import com.facebook.presto.execution.buffer.LazyOutputBuffer;
 import com.facebook.presto.execution.buffer.OutputBuffer;
+import com.facebook.presto.execution.warnings.ClearingWarningCollector;
 import com.facebook.presto.memory.QueryContext;
 import com.facebook.presto.operator.PipelineContext;
 import com.facebook.presto.operator.PipelineStatus;
@@ -85,6 +86,8 @@ public class SqlTask
     private final AtomicReference<TaskHolder> taskHolderReference = new AtomicReference<>(new TaskHolder());
     private final AtomicBoolean needsPlan = new AtomicBoolean(true);
 
+    private final ClearingWarningCollector warningCollector;
+
     public static SqlTask createSqlTask(
             TaskId taskId,
             URI location,
@@ -94,9 +97,10 @@ public class SqlTask
             ExecutorService taskNotificationExecutor,
             Function<SqlTask, ?> onDone,
             DataSize maxBufferSize,
-            CounterStat failedTasks)
+            CounterStat failedTasks,
+            ClearingWarningCollector warningCollector)
     {
-        SqlTask sqlTask = new SqlTask(taskId, location, nodeId, queryContext, sqlTaskExecutionFactory, taskNotificationExecutor, maxBufferSize);
+        SqlTask sqlTask = new SqlTask(taskId, location, nodeId, queryContext, sqlTaskExecutionFactory, taskNotificationExecutor, maxBufferSize, warningCollector);
         sqlTask.initialize(onDone, failedTasks);
         return sqlTask;
     }
@@ -108,7 +112,8 @@ public class SqlTask
             QueryContext queryContext,
             SqlTaskExecutionFactory sqlTaskExecutionFactory,
             ExecutorService taskNotificationExecutor,
-            DataSize maxBufferSize)
+            DataSize maxBufferSize,
+            ClearingWarningCollector warningCollector)
     {
         this.taskId = requireNonNull(taskId, "taskId is null");
         this.taskInstanceId = UUID.randomUUID().toString();
@@ -119,6 +124,7 @@ public class SqlTask
         requireNonNull(taskNotificationExecutor, "taskNotificationExecutor is null");
         requireNonNull(maxBufferSize, "maxBufferSize is null");
 
+        this.warningCollector = requireNonNull(warningCollector, "warningCollector is null");
         outputBuffer = new LazyOutputBuffer(
                 taskId,
                 taskInstanceId,

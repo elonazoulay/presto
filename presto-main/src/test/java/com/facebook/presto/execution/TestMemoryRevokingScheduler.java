@@ -16,6 +16,8 @@ package com.facebook.presto.execution;
 
 import com.facebook.presto.Session;
 import com.facebook.presto.execution.executor.TaskExecutor;
+import com.facebook.presto.execution.warnings.SqlTaskWarningCollector;
+import com.facebook.presto.execution.warnings.WarningCollectorConfig;
 import com.facebook.presto.memory.DefaultQueryContext;
 import com.facebook.presto.memory.MemoryPool;
 import com.facebook.presto.memory.context.LocalMemoryContext;
@@ -306,6 +308,7 @@ public class TestMemoryRevokingScheduler
                 executor,
                 Functions.identity(),
                 new DataSize(32, MEGABYTE),
-                new CounterStat());
+                new CounterStat(),
+                new SqlTaskWarningCollector(new WarningCollectorConfig()));
     }
 }

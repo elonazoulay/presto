@@ -21,6 +21,7 @@ import com.facebook.presto.event.SplitMonitor;
 import com.facebook.presto.execution.StateMachine.StateChangeListener;
 import com.facebook.presto.execution.buffer.BufferResult;
 import com.facebook.presto.execution.executor.TaskExecutor;
+import com.facebook.presto.execution.warnings.ClearingWarningCollectorFactory;
 import com.facebook.presto.memory.DefaultQueryContext;
 import com.facebook.presto.memory.LegacyQueryContext;
 import com.facebook.presto.memory.LocalMemoryManager;
@@ -125,7 +126,8 @@ public class SqlTaskManager
             NodeMemoryConfig nodeMemoryConfig,
             LocalSpillManager localSpillManager,
             NodeSpillConfig nodeSpillConfig,
-            GcMonitor gcMonitor)
+            GcMonitor gcMonitor,
+            ClearingWarningCollectorFactory warningCollectorFactory)
     {
         requireNonNull(nodeInfo, "nodeInfo is null");
         requireNonNull(config, "config is null");
@@ -163,7 +165,8 @@ public class SqlTaskManager
                             return null;
                         },
                         maxBufferSize,
-                        failedTasks)));
+                        failedTasks,
+                        warningCollectorFactory.create())));
     }
 
     private QueryContext createQueryContext(
