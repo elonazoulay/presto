@@ -87,6 +87,7 @@ public class SqlTask
     private final AtomicBoolean needsPlan = new AtomicBoolean(true);
 
     private final ClearingWarningCollector warningCollector;
+    private final OutputBuffer warningsBuffer;
 
     public static SqlTask createSqlTask(
             TaskId taskId,
@@ -133,6 +134,14 @@ public class SqlTask
                 // Pass a memory context supplier instead of a memory context to the output buffer,
                 // because we haven't created the task context that holds the the memory context yet.
                 () -> queryContext.getTaskContextByTaskId(taskId).localSystemMemoryContext());
+        warningsBuffer = new LazyOutputBuffer(
+                taskId,
+                taskInstanceId,
+                taskNotificationExecutor, // TODO: change executor
+                maxBufferSize,
+                // Pass a memory context supplier instead of a memory context to the output buffer,
+                // because we haven't created the task context that holds the the memory context yet.
+                () -> queryContext.getTaskContextByTaskId(taskId).localSystemMemoryContext());
         taskStateMachine = new TaskStateMachine(taskId, taskNotificationExecutor);
     }
 
@@ -173,9 +182,11 @@ public class SqlTask
                     // don't close buffers for a failed query
                     // closed buffers signal to upstream tasks that everything finished cleanly
                     outputBuffer.fail();
+                    warningsBuffer.fail();
                 }
                 else {
                     outputBuffer.destroy();
+                    warningsBuffer.destroy();
                 }
 
                 try {
