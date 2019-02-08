@@ -131,6 +131,18 @@ public abstract class AbstractTestDistributedQueries
     }
 
     @Test
+    public void testEmptyColumnName()
+    {
+        assertQueryFails("CREATE TABLE foo (col1 BIGINT, \"\" BIGINT)", "name is empty");
+    }
+
+    @Test
+    public void testNullColumnName()
+    {
+        assertQueryFails("CREATE TABLE foo (col1 BIGINT, null BIGINT)", "line 1:32: mismatched input 'null'. Expecting: .*");
+    }
+
+    @Test
     public void testCreateTable()
     {
         assertUpdate("CREATE TABLE test_create (a bigint, b double, c varchar)");

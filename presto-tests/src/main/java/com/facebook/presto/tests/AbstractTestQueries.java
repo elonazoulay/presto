@@ -159,6 +159,42 @@ public abstract class AbstractTestQueries
     }
 
     @Test
+    public void testEmptyTableName()
+    {
+        assertQueryFails("SELECT * FROM \"\"", "line 1:15: Table name is empty");
+    }
+
+    @Test
+    public void testNullTableName()
+    {
+        assertQueryFails("SELECT * FROM NULL", "line 1:15: mismatched input 'NULL'. Expecting: .*");
+    }
+
+    @Test
+    public void testEmptySchemaName()
+    {
+        assertQueryFails("SELECT * FROM \"\".foo", "line 1:15: Schema name is empty");
+    }
+
+    @Test
+    public void testNullSchemaName()
+    {
+        assertQueryFails("SELECT * FROM NULL.foo", "line 1:15: mismatched input 'NULL'. Expecting: .*");
+    }
+
+    @Test
+    public void testEmptyCatalogName()
+    {
+        assertQueryFails("SELECT * FROM \"\".schema.foo", "line 1:15: Catalog  does not exist");
+    }
+
+    @Test
+    public void testNullCatalogName()
+    {
+        assertQueryFails("SELECT * FROM NULL.schema.foo", "line 1:15: mismatched input 'NULL'. Expecting: .*");
+    }
+
+    @Test
     public void selectLargeInterval()
     {
         MaterializedResult result = computeActual("SELECT INTERVAL '30' DAY");
