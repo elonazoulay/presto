@@ -33,6 +33,7 @@ import com.facebook.presto.orc.metadata.statistics.HiveBloomFilter;
 import com.facebook.presto.orc.stream.InputStreamSource;
 import com.facebook.presto.orc.stream.InputStreamSources;
 import com.facebook.presto.orc.stream.OrcInputStream;
+import com.facebook.presto.orc.stream.OrcInputStreamV1;
 import com.facebook.presto.orc.stream.ValueInputStream;
 import com.facebook.presto.orc.stream.ValueInputStreamSource;
 import com.facebook.presto.orc.stream.ValueStreams;
@@ -262,11 +263,11 @@ public class StripeReader
         // read ranges
         Map<StreamId, OrcDataSourceInput> streamsData = orcDataSource.readFully(diskRanges);
 
-        // transform streams to OrcInputStream
+        // transform streams to OrcInputStreamV1
         ImmutableMap.Builder<StreamId, OrcInputStream> streamsBuilder = ImmutableMap.builder();
         for (Entry<StreamId, OrcDataSourceInput> entry : streamsData.entrySet()) {
             OrcDataSourceInput sourceInput = entry.getValue();
-            streamsBuilder.put(entry.getKey(), new OrcInputStream(orcDataSource.getId(), sourceInput.getInput(), decompressor, systemMemoryUsage, sourceInput.getRetainedSizeInBytes()));
+            streamsBuilder.put(entry.getKey(), new OrcInputStreamV1(orcDataSource.getId(), sourceInput.getInput(), decompressor, systemMemoryUsage, sourceInput.getRetainedSizeInBytes()));
         }
         return streamsBuilder.build();
     }
@@ -382,7 +383,7 @@ public class StripeReader
         // read the footer
         byte[] tailBuffer = new byte[tailLength];
         orcDataSource.readFully(offset, tailBuffer);
-        try (InputStream inputStream = new OrcInputStream(orcDataSource.getId(), Slices.wrappedBuffer(tailBuffer).getInput(), decompressor, systemMemoryUsage, tailLength)) {
+        try (InputStream inputStream = new OrcInputStreamV1(orcDataSource.getId(), Slices.wrappedBuffer(tailBuffer).getInput(), decompressor, systemMemoryUsage, tailLength)) {
             return metadataReader.readStripeFooter(types, inputStream);
         }
     }
