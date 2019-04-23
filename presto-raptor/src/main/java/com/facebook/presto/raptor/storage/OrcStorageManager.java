@@ -45,6 +45,7 @@ import com.facebook.presto.spi.type.NamedTypeSignature;
 import com.facebook.presto.spi.type.RowFieldName;
 import com.facebook.presto.spi.type.RowType;
 import com.facebook.presto.spi.type.StandardTypes;
+import com.facebook.presto.spi.type.TimeType;
 import com.facebook.presto.spi.type.TimestampType;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.spi.type.TypeManager;
@@ -562,7 +563,7 @@ public class OrcStorageManager
     static Type toOrcFileType(Type raptorType, TypeManager typeManager)
     {
         // TIMESTAMPS are stored as BIGINT to void the poor encoding in ORC
-        if (raptorType == TimestampType.TIMESTAMP) {
+        if (raptorType == TimestampType.TIMESTAMP || raptorType == TimeType.TIME) {
             return BIGINT;
         }
         if (raptorType instanceof ArrayType) {
